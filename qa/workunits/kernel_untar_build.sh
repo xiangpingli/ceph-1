@@ -2,8 +2,7 @@
 
 set -e
 
-#wget -q http://ceph.newdream.net/qa/linux-2.6.33.tar.bz2
-wget -q http://ceph.com/qa/linux-3.2.9.tar.bz2
+wget -q http://download.ceph.com/qa/linux-4.0.5.tar.xz
 
 mkdir t
 cd t
