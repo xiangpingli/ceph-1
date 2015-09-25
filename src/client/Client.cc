@@ -8752,23 +8752,7 @@ int Client::statfs(const char *path, struct statvfs *stbuf)
   tout(cct) << "statfs" << std::endl;
 
   ceph_statfs stats;
-
-  Mutex lock("Client::statfs::lock");
-  Cond cond;
-  bool done;
-  int rval;
-
-  objecter->get_fs_stats(stats, new C_SafeCond(&lock, &cond, &done, &rval));
-
-  client_lock.Unlock();
-  lock.Lock();
-  while (!done)
-    cond.Wait(lock);
-  lock.Unlock();
-  client_lock.Lock();
-
   memset(stbuf, 0, sizeof(*stbuf));
-
   /*
    * we're going to set a block size of 4MB so we can represent larger
    * FSes without overflowing. Additionally convert the space
@@ -8779,14 +8763,41 @@ int Client::statfs(const char *path, struct statvfs *stbuf)
   const int CEPH_BLOCK_SHIFT = 22;
   stbuf->f_frsize = 1 << CEPH_BLOCK_SHIFT;
   stbuf->f_bsize = 1 << CEPH_BLOCK_SHIFT;
-  stbuf->f_blocks = stats.kb >> (CEPH_BLOCK_SHIFT - 10);
-  stbuf->f_bfree = stats.kb_avail >> (CEPH_BLOCK_SHIFT - 10);
-  stbuf->f_bavail = stats.kb_avail >> (CEPH_BLOCK_SHIFT - 10);
   stbuf->f_files = stats.num_objects;
   stbuf->f_ffree = -1;
   stbuf->f_favail = -1;
   stbuf->f_fsid = -1;       // ??
   stbuf->f_flag = 0;        // ??
+
+  C_SaferCond cond;
+  objecter->get_fs_stats(stats, &cond);
+
+  client_lock.Unlock();
+  int rval = cond.wait();
+  client_lock.Lock();
+
+  if (cct->_conf->client_quota && cct->_conf->client_quota_df
+      && root_ancestor && root_ancestor->quota.max_bytes) {
+
+    // Special case: if there is a size quota set on the Inode acting
+    // as the root for this client mount, then report the quota status
+    // as the filesystem statistics.
+    fsblkcnt_t total = root_ancestor->quota.max_bytes >> CEPH_BLOCK_SHIFT;
+    fsblkcnt_t used = root_ancestor->rstat.rbytes >> CEPH_BLOCK_SHIFT;
+    fsblkcnt_t free = total - used;
+
+
+    stbuf->f_blocks = total;
+    stbuf->f_bfree = free;
+    stbuf->f_bavail = free;
+  } else {
+    // General case: report the overall RADOS cluster's statistics.  Because
+    // multiple pools may be used without one filesystem namespace via
+    // layouts, this is the most correct thing we can do.
+    stbuf->f_blocks = stats.kb >> (CEPH_BLOCK_SHIFT - 10);
+    stbuf->f_bfree = stats.kb_avail >> (CEPH_BLOCK_SHIFT - 10);
+    stbuf->f_bavail = stats.kb_avail >> (CEPH_BLOCK_SHIFT - 10);
+  }
   stbuf->f_namemax = NAME_MAX;
 
   return rval;
