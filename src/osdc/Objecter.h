@@ -1222,8 +1222,10 @@ public:
 
     bool used_replica;
     bool paused;
+    bool use_osd_epoch;
 
     int osd;      ///< the final target osd, or -1
+    epoch_t epoch; ///< Required epoch
 
     op_target_t(object_t oid, object_locator_t oloc, int flags)
       : flags(flags),
@@ -1239,6 +1241,7 @@ public:
 	sort_bitwise(false),
 	used_replica(false),
 	paused(false),
+	use_osd_epoch(false),
 	osd(-1)
     {}
 
@@ -2276,6 +2279,33 @@ public:
 			       onack, reply_epoch, ctx_budget);
     ceph_tid_t tid;
     op_submit(o, &tid, ctx_budget);
+    return tid;
+  }
+  ceph_tid_t repair_read(const object_t& oid, const object_locator_t& oloc,
+		  uint64_t off, uint64_t len, snapid_t snap, int32_t osdid,
+		  epoch_t e, bufferlist *pbl,
+		  int flags, Context *onfinish, version_t *objver = NULL,
+		  ObjectOperation *extra_ops = NULL, int op_flags = 0) {
+    vector<OSDOp> ops;
+    int i = init_ops(ops, 2, extra_ops);
+    ops[i].op.op = CEPH_OSD_OP_ASSERT_INTERVAL;
+    ops[i].op.assert_interval.epoch = e;
+    ++i;
+    ops[i].op.op = CEPH_OSD_OP_READ;
+    ops[i].op.extent.offset = off;
+    ops[i].op.extent.length = len;
+    ops[i].op.extent.truncate_size = 0;
+    ops[i].op.extent.truncate_seq = 0;
+    ops[i].op.flags = op_flags | CEPH_OSD_FLAG_REPAIR_READS;
+    Op *o = new Op(oid, oloc, ops, flags | global_op_flags.read() |
+		   CEPH_OSD_FLAG_READ, onfinish, 0, objver);
+    o->snapid = snap;
+    o->outbl = pbl;
+    o->target.osd = osdid;
+    o->target.use_osd_epoch = true;
+    o->target.epoch = e;
+    ceph_tid_t tid;
+    op_submit(o, &tid);
     return tid;
   }
 

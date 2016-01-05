@@ -747,6 +747,55 @@ int librados::IoCtxImpl::operate_read(const object_t& oid,
   return r;
 }
 
+int librados::IoCtxImpl::operate_repair_read(const object_t& oid,
+				      ::ObjectOperation *o,
+				      bufferlist *pbl,
+				      int flags, int32_t osdid, epoch_t e)
+{
+  if (!o->size())
+    return 0;
+
+  Mutex mylock("IoCtxImpl::operate_repair_read::mylock");
+  Cond cond;
+  bool done;
+  int r;
+  version_t ver;
+
+  Context *onack = new C_SafeCond(&mylock, &cond, &done, &r);
+
+  int op = o->ops[0].op.op;
+  ldout(client->cct, 10) << ceph_osd_op_name(op) << " oid=" << oid << " nspace=" << oloc.nspace << dendl;
+  // Prepend assert_interval op
+  OSDOp tmp;
+  tmp.op.op = CEPH_OSD_OP_ASSERT_INTERVAL;
+  tmp.op.assert_interval.epoch = e;
+  o->ops.insert(o->ops.begin(), tmp);
+  int size = o->ops.size();
+  o->out_bl.resize(size);
+  o->out_handler.resize(size);
+  o->out_rval.resize(size);
+  o->out_bl[1] = pbl;
+  Objecter::Op *objecter_op = objecter->prepare_read_op(oid, oloc,
+	                                      *o, snap_seq, NULL,
+	                                      flags | CEPH_OSD_FLAG_REPAIR_READS | CEPH_OSD_FLAG_IGNORE_OVERLAY,
+	                                      onack, &ver);
+  objecter_op->target.osd = osdid;
+  objecter_op->target.use_osd_epoch = true;
+  objecter_op->target.epoch = e;
+  objecter->op_submit(objecter_op);
+
+  mylock.Lock();
+  while (!done)
+    cond.Wait(mylock);
+  mylock.Unlock();
+  ldout(client->cct, 10) << "Objecter returned from "
+	<< ceph_osd_op_name(op) << " r=" << r << dendl;
+
+  set_sync_op_version(ver);
+
+  return r;
+}
+
 int librados::IoCtxImpl::aio_operate_read(const object_t &oid,
 					  ::ObjectOperation *o,
 					  AioCompletionImpl *c,
@@ -865,6 +914,25 @@ int librados::IoCtxImpl::aio_sparse_read(const object_t oid,
     onack->m_ops, snap_seq, NULL, 0,
     onack, &c->objver);
   objecter->op_submit(o, &c->tid);
+  return 0;
+}
+
+int librados::IoCtxImpl::aio_repair_read(const object_t oid, AioCompletionImpl *c,
+				  bufferlist *pbl, size_t len, uint64_t off,
+				  uint64_t snapid, int32_t osdid, epoch_t e)
+{
+  if (len > (size_t) INT_MAX)
+    return -EDOM;
+
+  Context *onack = new C_aio_Ack(c);
+
+  c->is_read = true;
+  c->io = this;
+  c->blp = pbl;
+
+  c->tid = objecter->repair_read(oid, oloc,
+		 off, len, snapid, osdid, e, pbl, 0,
+		 onack, &c->objver);
   return 0;
 }
 
@@ -1210,6 +1278,27 @@ int librados::IoCtxImpl::read(const object_t& oid,
   prepare_assert_ops(&rd);
   rd.read(off, len, &bl, NULL, NULL);
   int r = operate_read(oid, &rd, &bl);
+  if (r < 0)
+    return r;
+
+  if (bl.length() < len) {
+    ldout(client->cct, 10) << "Returned length " << bl.length()
+	     << " less than original length "<< len << dendl;
+  }
+
+  return bl.length();
+}
+
+int librados::IoCtxImpl::repair_read(const object_t& oid, bufferlist& bl,
+			size_t len, uint64_t off, int32_t osdid, epoch_t e)
+{
+  if (len > (size_t) INT_MAX)
+    return -EDOM;
+
+  ::ObjectOperation rd;
+  prepare_assert_ops(&rd);
+  rd.read(off, len, &bl, NULL, NULL);
+  int r = operate_repair_read(oid, &rd, &bl, 0, osdid, e);
   if (r < 0)
     return r;
 
