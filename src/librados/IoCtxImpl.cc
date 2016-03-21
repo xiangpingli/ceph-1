@@ -750,7 +750,7 @@ int librados::IoCtxImpl::operate_read(const object_t& oid,
 int librados::IoCtxImpl::operate_repair_read(const object_t& oid,
 				      ::ObjectOperation *o,
 				      bufferlist *pbl,
-				      int flags, int32_t osdid, epoch_t e)
+				      int flags, int32_t osdid, epoch_t e, int op_flags)
 {
   if (!o->size())
     return 0;
@@ -775,6 +775,7 @@ int librados::IoCtxImpl::operate_repair_read(const object_t& oid,
   o->out_handler.resize(size);
   o->out_rval.resize(size);
   o->out_bl[1] = pbl;
+  o->ops[1].op.flags = op_flags;
   Objecter::Op *objecter_op = objecter->prepare_read_op(oid, oloc,
 	                                      *o, snap_seq, NULL,
 	                                      flags | CEPH_OSD_FLAG_REPAIR_READS | CEPH_OSD_FLAG_IGNORE_OVERLAY,
@@ -919,7 +920,7 @@ int librados::IoCtxImpl::aio_sparse_read(const object_t oid,
 
 int librados::IoCtxImpl::aio_repair_read(const object_t oid, AioCompletionImpl *c,
 				  bufferlist *pbl, size_t len, uint64_t off,
-				  uint64_t snapid, int32_t osdid, epoch_t e)
+				  uint64_t snapid, int flags, int32_t osdid, epoch_t e)
 {
   if (len > (size_t) INT_MAX)
     return -EDOM;
@@ -931,7 +932,7 @@ int librados::IoCtxImpl::aio_repair_read(const object_t oid, AioCompletionImpl *
   c->blp = pbl;
 
   c->tid = objecter->repair_read(oid, oloc,
-		 off, len, snapid, osdid, e, pbl, 0,
+		 off, len, snapid, osdid, e, pbl, flags,
 		 onack, &c->objver);
   return 0;
 }
@@ -1290,7 +1291,7 @@ int librados::IoCtxImpl::read(const object_t& oid,
 }
 
 int librados::IoCtxImpl::repair_read(const object_t& oid, bufferlist& bl,
-			size_t len, uint64_t off, int32_t osdid, epoch_t e)
+		size_t len, uint64_t off, int flags, int32_t osdid, epoch_t e)
 {
   if (len > (size_t) INT_MAX)
     return -EDOM;
@@ -1298,7 +1299,9 @@ int librados::IoCtxImpl::repair_read(const object_t& oid, bufferlist& bl,
   ::ObjectOperation rd;
   prepare_assert_ops(&rd);
   rd.read(off, len, &bl, NULL, NULL);
-  int r = operate_repair_read(oid, &rd, &bl, 0, osdid, e);
+  // Only 1 flag can be passed from user
+  flags &= CEPH_OSD_OP_FLAG_FAILOK;
+  int r = operate_repair_read(oid, &rd, &bl, 0, osdid, e, flags);
   if (r < 0)
     return r;
 

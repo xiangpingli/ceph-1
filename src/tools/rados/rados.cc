@@ -318,7 +318,8 @@ static int do_get(IoCtx& io_ctx, RadosStriper& striper,
 }
 
 static int do_repair_get(IoCtx& io_ctx, const char *objname,
-	const char *outfile, unsigned op_size, int32_t osdid, epoch_t epoch)
+	const char *outfile, unsigned op_size, int32_t osdid, epoch_t epoch,
+	bool force)
 {
   string oid(objname);
 
@@ -338,7 +339,9 @@ static int do_repair_get(IoCtx& io_ctx, const char *objname,
   int ret = 0;
   while (true) {
     bufferlist outdata;
-    ret = io_ctx.repair_read(oid, outdata, op_size, offset, osdid, epoch);
+    int flags = 0;
+    if (force) flags |= LIBRADOS_OP_FLAG_FAILOK;
+    ret = io_ctx.repair_read(oid, outdata, op_size, offset, flags, osdid, epoch);
     if (ret <= 0) {
       if (ret == -EINVAL)
 	cerr << "Specified epoch does not match scrub interval" << std::endl;
@@ -1553,6 +1556,7 @@ static int rados_tool_common(const std::map < std::string, std::string > &opts,
   std::string run_name;
   std::string prefix;
   bool forcefull = false;
+  bool force = false;
   Formatter *formatter = NULL;
   bool pretty_format = false;
   const char *output = NULL;
@@ -1599,6 +1603,10 @@ static int rados_tool_common(const std::map < std::string, std::string > &opts,
   i = opts.find("force-full");
   if (i != opts.end()) {
     forcefull = true;
+  }
+  i = opts.find("force");
+  if (i != opts.end()) {
+    force = true;
   }
   i = opts.find("prefix");
   if (i != opts.end()) {
@@ -2102,7 +2110,7 @@ static int rados_tool_common(const std::map < std::string, std::string > &opts,
     }
     int32_t osdid = atoi(nargs[2]);
     epoch_t e = atoi(nargs[3]);
-    ret = do_repair_get(io_ctx, nargs[1], nargs[4], op_size, osdid, e);
+    ret = do_repair_get(io_ctx, nargs[1], nargs[4], op_size, osdid, e, force);
     if (ret < 0) {
       cerr << "error getting shard from osd " << osdid << " of " << pool_name << "/" << nargs[1] << ": " << cpp_strerror(ret) << std::endl;
       goto out;
