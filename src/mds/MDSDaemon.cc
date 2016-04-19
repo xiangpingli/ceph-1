@@ -559,7 +559,6 @@ int MDSDaemon::init()
 
   // schedule tick
   reset_tick();
-  g_conf->add_observer(this);
   mds_lock.Unlock();
 
   return 0;
