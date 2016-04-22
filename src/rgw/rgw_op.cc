@@ -1834,7 +1834,7 @@ static void prepare_add_del_attrs(const map<string, bufferlist>& orig_attrs,
                                   map<string, bufferlist>& out_attrs,
                                   map<string, bufferlist>& out_rmattrs)
 {
-  for (const auto kv : orig_attrs) {
+  for (const auto& kv : orig_attrs) {
     const string& name = kv.first;
 
     /* Check if the attr is user-defined metadata item. */
@@ -1852,7 +1852,7 @@ static void prepare_add_del_attrs(const map<string, bufferlist>& orig_attrs,
                                   const set<string>& rmattr_names,
                                   map<string, bufferlist>& out_attrs)
 {
-  for (const auto kv : orig_attrs) {
+  for (const auto& kv : orig_attrs) {
     const string& name = kv.first;
 
     /* Check if the attr is user-defined metadata item. */
@@ -1877,7 +1877,7 @@ static void prepare_add_del_attrs(const map<string, bufferlist>& orig_attrs,
 static void populate_with_generic_attrs(const req_state * const s,
                                         map<string, bufferlist>& out_attrs)
 {
-  for (auto kv : s->generic_attrs) {
+  for (const auto& kv : s->generic_attrs) {
     bufferlist& attrbl = out_attrs[kv.first];
     const string& val = kv.second;
     attrbl.clear();
