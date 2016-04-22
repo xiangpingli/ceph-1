@@ -576,9 +576,9 @@ bool MDSRank::handle_deferrable_message(Message *m)
       // SERVER
     case CEPH_MSG_CLIENT_SESSION:
     case CEPH_MSG_CLIENT_RECONNECT:
-      ALLOW_MESSAGES_FROM(CEPH_ENTITY_TYPE_CLIENT);
       // fall-thru
     case CEPH_MSG_CLIENT_REQUEST:
+      ALLOW_MESSAGES_FROM(CEPH_ENTITY_TYPE_CLIENT);
       server->dispatch(m);
       break;
     case MSG_MDS_SLAVE_REQUEST:
