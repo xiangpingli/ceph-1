@@ -7627,9 +7627,7 @@ void MDCache::dispatch(Message *m)
     
   default:
     dout(7) << "cache unknown message " << m->get_type() << dendl;
-    assert(0);
-    m->put();
-    break;
+    assert(0 == "cache unknown message");
   }
 }
 
