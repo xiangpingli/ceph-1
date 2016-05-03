@@ -121,6 +121,17 @@ void DispatchQueue::entry()
 		       << " " << m->get_footer().data_crc << ")"
 		       << " " << m << " con " << m->get_connection()
 		       << dendl;
+	  if (cct->_conf->ms_dump_on_receipt) {
+	    ldout(cct, 0) << "payload: ";
+	    m->get_payload().hexdump(*_dout);
+	    *_dout << dendl;
+	    ldout(cct, 0) << "middle:";
+	    m->get_middle().hexdump(*_dout);
+	    *_dout << dendl;
+	    ldout(cct, 0) << "data:";
+	    m->get_data().hexdump(*_dout);
+	    *_dout << dendl;
+	  }
 	  msgr->ms_deliver_dispatch(m);
 
 	  msgr->dispatch_throttle_release(msize);
