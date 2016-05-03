@@ -403,7 +403,7 @@ void SimpleMessenger::submit_message(Message *m, Connection *con,
 				     const entity_addr_t& dest_addr, int dest_type, bool lazy)
 {
 
-  if (cct->_conf->ms_dump_on_send) {
+  if (cct->_conf->ms_dump_on_send || cct->_conf->magic_io_test) {
     m->encode(-1, true);
     ldout(cct, 0) << "submit_message " << *m << "\n";
     m->get_payload().hexdump(*_dout);

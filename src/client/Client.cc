@@ -6234,7 +6234,7 @@ done:
   if (have)
     put_cap_ref(in, CEPH_CAP_FILE_RD);
 
-  if (conf->client_dump_on_io) {
+  if (conf->client_dump_on_io || conf->magic_io_test) {
     ldout(cct, 0) << "read result on (" << *in << ") of offset+size "
 		  << offset << '+' << size << '\n';
     bl->hexdump(*_dout);
@@ -6509,7 +6509,7 @@ int Client::_write(Fh *f, int64_t offset, uint64_t size, const char *buf)
   bufferlist bl;
   bl.push_back( bp );
 
-  if (cct->_conf->client_dump_on_io) {
+  if (cct->_conf->client_dump_on_io || cct->_conf->magic_io_test) {
     ldout(cct, 0) << "write buffer on (" << *in << ") of offset+size "
 		  << offset << '+' << size << '\n';
     bl.hexdump(*_dout);

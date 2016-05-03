@@ -131,6 +131,7 @@ OPTION(ms_dump_on_send, OPT_BOOL, false)           // hexdump msg to log on send
 OPTION(ms_dump_on_receipt, OPT_BOOL, false)           // hexdump msg to log on receipt
 OPTION(client_dump_on_io, OPT_BOOL, false)           // hexdump file IO to log on read/write
 
+OPTION(magic_io_test, OPT_BOOL, false) // enable IO test logging and debug options with one flag
 
 OPTION(inject_early_sigterm, OPT_BOOL, false)
 

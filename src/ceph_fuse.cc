@@ -101,6 +101,17 @@ int main(int argc, const char **argv, const char *envp[]) {
   if (childpid == 0) {
     common_init_finish(g_ceph_context);
 
+    md_config_t *conf = g_ceph_context->_conf;
+    if (conf->magic_io_test) {
+      conf->subsys.set_gather_level(ceph_subsys_client, 20);
+      conf->subsys.set_log_level(ceph_subsys_client, 20);
+      conf->subsys.set_log_level(ceph_subsys_ms, 1);
+      conf->subsys.set_gather_level(ceph_subsys_objecter, 5);
+      conf->subsys.set_log_level(ceph_subsys_objecter, 1);
+      conf->subsys.set_gather_level(ceph_subsys_objectcacher, 10);
+      conf->subsys.set_log_level(ceph_subsys_objectcacher, 7);
+    }
+
     //cout << "child, mounting" << std::endl;
     ::close(fd[0]);
 

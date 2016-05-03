@@ -121,7 +121,7 @@ void DispatchQueue::entry()
 		       << " " << m->get_footer().data_crc << ")"
 		       << " " << m << " con " << m->get_connection()
 		       << dendl;
-	  if (cct->_conf->ms_dump_on_receipt) {
+	  if (cct->_conf->ms_dump_on_receipt || cct->_conf->magic_io_test) {
 	    ldout(cct, 0) << "payload: ";
 	    m->get_payload().hexdump(*_dout);
 	    *_dout << dendl;
