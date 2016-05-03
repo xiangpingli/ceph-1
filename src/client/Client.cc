@@ -6233,6 +6233,14 @@ done:
 
   if (have)
     put_cap_ref(in, CEPH_CAP_FILE_RD);
+
+  if (conf->client_dump_on_io) {
+    ldout(cct, 0) << "read result on (" << *in << ") of offset+size "
+		  << offset << '+' << size << '\n';
+    bl->hexdump(*_dout);
+    *_dout << dendl;
+  }
+
   return r < 0 ? r : bl->length();
 }
 
@@ -6500,6 +6508,13 @@ int Client::_write(Fh *f, int64_t offset, uint64_t size, const char *buf)
   if (size > 0) bp = buffer::copy(buf, size);
   bufferlist bl;
   bl.push_back( bp );
+
+  if (cct->_conf->client_dump_on_io) {
+    ldout(cct, 0) << "write buffer on (" << *in << ") of offset+size "
+		  << offset << '+' << size << '\n';
+    bl.hexdump(*_dout);
+    *_dout << dendl;
+  }
 
   utime_t lat;
   uint64_t totalwritten;
