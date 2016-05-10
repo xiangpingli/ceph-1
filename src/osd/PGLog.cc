@@ -562,14 +562,14 @@ void PGLog::check() {
   }
 }
 
-void PGLog::write_log(
+void PGLog::write_log_and_missing(
   ObjectStore::Transaction& t,
   map<string,bufferlist> *km,
   const coll_t& coll, const ghobject_t &log_oid,
   bool require_rollback)
 {
   if (is_dirty()) {
-    dout(5) << "write_log with: "
+    dout(5) << "write_log_and_missing with: "
 	     << "dirty_to: " << dirty_to
 	     << ", dirty_from: " << dirty_from
 	     << ", dirty_divergent_priors: "
@@ -578,7 +578,7 @@ void PGLog::write_log(
 	     << ", writeout_from: " << writeout_from
 	     << ", trimmed: " << trimmed
 	     << dendl;
-    _write_log(
+    _write_log_and_missing(
       t, km, log, coll, log_oid, divergent_priors,
       dirty_to,
       dirty_from,
@@ -594,7 +594,7 @@ void PGLog::write_log(
   }
 }
 
-void PGLog::write_log(
+void PGLog::write_log_and_missing(
     ObjectStore::Transaction& t,
     map<string,bufferlist> *km,
     pg_log_t &log,
@@ -602,14 +602,14 @@ void PGLog::write_log(
     map<eversion_t, hobject_t> &divergent_priors,
     bool require_rollback)
 {
-  _write_log(
+  _write_log_and_missing(
     t, km, log, coll, log_oid,
     divergent_priors, eversion_t::max(), eversion_t(), eversion_t(),
     set<eversion_t>(),
     true, true, require_rollback, 0);
 }
 
-void PGLog::_write_log(
+void PGLog::_write_log_and_missing(
   ObjectStore::Transaction& t,
   map<string,bufferlist> *km,
   pg_log_t &log,
@@ -636,7 +636,7 @@ void PGLog::_write_log(
     }
   }
 
-//dout(10) << "write_log, clearing up to " << dirty_to << dendl;
+//dout(10) << "write_log_and_missing, clearing up to " << dirty_to << dendl;
   if (touch_log)
     t.touch(coll, log_oid);
   if (dirty_to != eversion_t()) {
@@ -646,7 +646,7 @@ void PGLog::_write_log(
     clear_up_to(log_keys_debug, dirty_to.get_key_name());
   }
   if (dirty_to != eversion_t::max() && dirty_from != eversion_t::max()) {
-    //   dout(10) << "write_log, clearing from " << dirty_from << dendl;
+    //   dout(10) << "write_log_and_missing, clearing from " << dirty_from << dendl;
     t.omap_rmkeyrange(
       coll, log_oid,
       dirty_from.get_key_name(), eversion_t::max().get_key_name());
@@ -683,7 +683,7 @@ void PGLog::_write_log(
   }
 
   if (dirty_divergent_priors) {
-    //dout(10) << "write_log: writing divergent_priors" << dendl;
+    //dout(10) << "write_log_and_missing: writing divergent_priors" << dendl;
     ::encode(divergent_priors, (*km)["divergent_priors"]);
   }
   if (require_rollback) {
