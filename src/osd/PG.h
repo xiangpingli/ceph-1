@@ -315,7 +315,7 @@ public:
   ghobject_t    pgmeta_oid;
 
   class MissingLoc {
-    map<hobject_t, pg_missing_t::item, hobject_t::BitwiseComparator> needs_recovery_map;
+    map<hobject_t, pg_missing_item, hobject_t::BitwiseComparator> needs_recovery_map;
     map<hobject_t, set<pg_shard_t>, hobject_t::BitwiseComparator > missing_loc;
     set<pg_shard_t> missing_loc_sources;
     PG *pg;
@@ -335,7 +335,7 @@ public:
     bool needs_recovery(
       const hobject_t &hoid,
       eversion_t *v = 0) const {
-      map<hobject_t, pg_missing_t::item, hobject_t::BitwiseComparator>::const_iterator i =
+      map<hobject_t, pg_missing_item, hobject_t::BitwiseComparator>::const_iterator i =
 	needs_recovery_map.find(hoid);
       if (i == needs_recovery_map.end())
 	return false;
@@ -353,7 +353,7 @@ public:
       const set<pg_shard_t> &acting) const;
     uint64_t num_unfound() const {
       uint64_t ret = 0;
-      for (map<hobject_t, pg_missing_t::item, hobject_t::BitwiseComparator>::const_iterator i =
+      for (map<hobject_t, pg_missing_item, hobject_t::BitwiseComparator>::const_iterator i =
 	     needs_recovery_map.begin();
 	   i != needs_recovery_map.end();
 	   ++i) {
@@ -376,11 +376,11 @@ public:
       missing_loc[hoid].erase(location);
     }
     void add_active_missing(const pg_missing_t &missing) {
-      for (map<hobject_t, pg_missing_t::item, hobject_t::BitwiseComparator>::const_iterator i =
+      for (map<hobject_t, pg_missing_item, hobject_t::BitwiseComparator>::const_iterator i =
 	     missing.get_items().begin();
 	   i != missing.get_items().end();
 	   ++i) {
-	map<hobject_t, pg_missing_t::item, hobject_t::BitwiseComparator>::const_iterator j =
+	map<hobject_t, pg_missing_item, hobject_t::BitwiseComparator>::const_iterator j =
 	  needs_recovery_map.find(i->first);
 	if (j == needs_recovery_map.end()) {
 	  needs_recovery_map.insert(*i);
@@ -391,7 +391,7 @@ public:
     }
 
     void add_missing(const hobject_t &hoid, eversion_t need, eversion_t have) {
-      needs_recovery_map[hoid] = pg_missing_t::item(need, have);
+      needs_recovery_map[hoid] = pg_missing_item(need, have);
     }
     void revise_need(const hobject_t &hoid, eversion_t need) {
       assert(needs_recovery(hoid));
@@ -433,7 +433,7 @@ public:
       const map<pg_shard_t, pg_missing_t> &pmissing,
       const map<pg_shard_t, pg_info_t> &pinfo) {
       recovered(hoid);
-      boost::optional<pg_missing_t::item> item;
+      boost::optional<pg_missing_item> item;
       auto miter = missing.get_items().find(hoid);
       if (miter != missing.get_items().end()) {
 	item = miter->second;
@@ -477,7 +477,7 @@ public:
     const map<hobject_t, set<pg_shard_t>, hobject_t::BitwiseComparator> &get_missing_locs() const {
       return missing_loc;
     }
-    const map<hobject_t, pg_missing_t::item, hobject_t::BitwiseComparator> &get_needs_recovery() const {
+    const map<hobject_t, pg_missing_item, hobject_t::BitwiseComparator> &get_needs_recovery() const {
       return needs_recovery_map;
     }
   } missing_loc;
