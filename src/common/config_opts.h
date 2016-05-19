@@ -132,6 +132,11 @@ OPTION(ms_dump_on_receipt, OPT_BOOL, false)           // hexdump msg to log on r
 OPTION(client_dump_on_io, OPT_BOOL, false)           // hexdump file IO to log on read/write
 
 OPTION(magic_io_test, OPT_BOOL, false) // enable IO test logging and debug options with one flag
+OPTION(magic_debug_client, OPT_INT, 20)
+OPTION(magic_debug_ms, OPT_INT, 1)
+OPTION(magic_debug_objecter, OPT_INT, 1)
+OPTION(magic_debug_objectcacher, OPT_INT, 30)
+
 
 OPTION(inject_early_sigterm, OPT_BOOL, false)
 

@@ -104,13 +104,13 @@ int main(int argc, const char **argv, const char *envp[]) {
 
     md_config_t *conf = g_ceph_context->_conf;
     if (conf->magic_io_test) {
-      conf->subsys.set_gather_level(ceph_subsys_client, 20);
-      conf->subsys.set_log_level(ceph_subsys_client, 20);
-      conf->subsys.set_log_level(ceph_subsys_ms, 1);
-      conf->subsys.set_gather_level(ceph_subsys_objecter, 5);
-      conf->subsys.set_log_level(ceph_subsys_objecter, 1);
-      conf->subsys.set_gather_level(ceph_subsys_objectcacher, 10);
-      conf->subsys.set_log_level(ceph_subsys_objectcacher, 7);
+      conf->subsys.set_gather_level(ceph_subsys_client, conf->magic_debug_client);
+      conf->subsys.set_log_level(ceph_subsys_client, conf->magic_debug_client);
+      conf->subsys.set_log_level(ceph_subsys_ms, conf->magic_debug_ms);
+      conf->subsys.set_gather_level(ceph_subsys_objecter, conf->magic_debug_objecter+4);
+      conf->subsys.set_log_level(ceph_subsys_objecter, conf->magic_debug_objecter);
+      conf->subsys.set_gather_level(ceph_subsys_objectcacher, conf->magic_debug_objectcacher);
+      conf->subsys.set_log_level(ceph_subsys_objectcacher, conf->magic_debug_objectcacher);
     }
 
     //cout << "child, mounting" << std::endl;
