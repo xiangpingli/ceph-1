@@ -780,6 +780,9 @@ void ObjectCacher::bh_read_finish(int64_t poolid, sobject_t oid, ceph_tid_t tid,
 	bh->error = r;
 	mark_error(bh);
       } else {
+	if ((bh->start() - start) != 0) {
+	  ldout(cct, 0) << "applying correct mapping, fixing http://tracker.ceph.com/issues/16002" << dendl;
+	}
 	bh->bl.substr_of(bl,
 			 bh->start() - start,
 			 bh->length());
