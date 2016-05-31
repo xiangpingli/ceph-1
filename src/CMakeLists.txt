@@ -1024,6 +1024,7 @@ set_target_properties(cephfstool PROPERTIES OUTPUT_NAME cephfs)
 install(TARGETS cephfstool DESTINATION bin)
 
 add_subdirectory(compressor)
+add_subdirectory(dmclock) # after gmock
 
 add_executable(ceph-client-debug tools/ceph-client-debug.cc)
 target_link_libraries(ceph-client-debug cephfs librados global common)
