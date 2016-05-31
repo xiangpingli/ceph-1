@@ -1002,6 +1002,9 @@ if(${WITH_MDS})
   install(TARGETS ceph-mds DESTINATION bin)
 endif(${WITH_MDS})
 
+set(GMOCK_INCLUDE_DIRS "${CMAKE_SOURCE_DIR}/src/gmock/include")
+set(GTEST_INCLUDE_DIRS "${CMAKE_SOURCE_DIR}/src/gmock/gtest/include")
+
 add_subdirectory(erasure-code)
 
 set(crushtool_srcs
