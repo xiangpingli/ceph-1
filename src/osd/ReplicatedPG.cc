@@ -1914,7 +1914,7 @@ void ReplicatedPG::do_op(OpRequestRef& op)
     }
     dout(20) << __func__ << "find_object_context got error " << r << dendl;
     if (op->may_write()) {
-      record_write_error(op, r);
+      record_write_error(op, oid, r);
     } else {
       osd->reply_op_error(op, r);
     }
@@ -2090,7 +2090,7 @@ void ReplicatedPG::do_op(OpRequestRef& op)
     dout(20) << __func__ << " returned an error: " << r << dendl;
     close_op_ctx(ctx);
     if (op->may_write()) {
-      record_write_error(op, r);
+      record_write_error(op, oid, r);
     } else {
       osd->reply_op_error(op, r);
     }
@@ -2144,14 +2144,15 @@ void ReplicatedPG::do_op(OpRequestRef& op)
   }
 }
 
-void ReplicatedPG::record_write_error(OpRequestRef& op, int r)
+void ReplicatedPG::record_write_error(OpRequestRef op, const hobject_t &soid,
+				      int r)
 {
   dout(20) << __func__ << " r=" << r << dendl;
   assert(op->may_write());
   const osd_reqid_t &reqid = static_cast<MOSDOp*>(op->get_req())->get_reqid();
   ObjectContextRef obc;
   list<pg_log_entry_t> entries;
-  entries.push_back(pg_log_entry_t(pg_log_entry_t::ERROR, hobject_t(),
+  entries.push_back(pg_log_entry_t(pg_log_entry_t::ERROR, soid,
 				   get_next_version(), eversion_t(), 0,
 				   reqid, utime_t(), r));
   ObcLockManager lock_manager;
@@ -2163,7 +2164,8 @@ void ReplicatedPG::record_write_error(OpRequestRef& op, int r)
 	dout(20) << "finished record_write_error r=" << r << dendl;
 	int flags = CEPH_OSD_FLAG_ACK | CEPH_OSD_FLAG_ONDISK;
 	MOSDOp *m = static_cast<MOSDOp*>(op->get_req());
-	MOSDOpReply *reply = new MOSDOpReply(m, r, get_osdmap()->get_epoch(), flags, true);
+	MOSDOpReply *reply = new MOSDOpReply(m, r, get_osdmap()->get_epoch(),
+					     flags, true);
 	reply->set_reply_versions(eversion_t(), 0);
 	dout(10) << " sending commit on " << *m << " " << reply << dendl;
 	osd->send_message_osd_client(reply, m->get_connection());
@@ -3057,7 +3059,7 @@ void ReplicatedPG::execute_ctx(OpContext *ctx)
     assert(result < 0);
     // just append to pg log for dup detection
     close_op_ctx(ctx);
-    record_write_error(op, result);
+    record_write_error(op, soid, result);
     return;
   }
 
