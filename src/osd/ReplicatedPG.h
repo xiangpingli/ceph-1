@@ -1471,7 +1471,7 @@ public:
     OpRequestRef& op,
     ThreadPool::TPHandle &handle);
   void do_op(OpRequestRef& op);
-  void record_write_error(OpRequestRef& op, int r);
+  void record_write_error(OpRequestRef op, const hobject_t &soid, int r);
   bool pg_op_must_wait(MOSDOp *op);
   void do_pg_op(OpRequestRef op);
   void do_sub_op(OpRequestRef op);
