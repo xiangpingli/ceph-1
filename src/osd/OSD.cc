@@ -3333,6 +3333,11 @@ void OSD::load_pgs()
     pg->handle_loaded(&rctx);
 
     dout(10) << "load_pgs loaded " << *pg << " " << pg->pg_log.get_log() << dendl;
+    if (pg->pg_log.is_dirty()) {
+      ObjectStore::Transaction t;
+      pg->write_if_dirty(t);
+      store->apply_transaction(pg->osr.get(), std::move(t));
+    }
     pg->unlock();
   }
   {
@@ -5720,10 +5725,10 @@ void OSD::do_command(Connection *con, ceph_tid_t tid, vector<string>& cmd, buffe
       pg->lock();
 
       fout << *pg << std::endl;
-      std::map<hobject_t, pg_missing_t::item, hobject_t::BitwiseComparator>::const_iterator mend =
-	pg->pg_log.get_missing().missing.end();
-      std::map<hobject_t, pg_missing_t::item, hobject_t::BitwiseComparator>::const_iterator mi =
-	pg->pg_log.get_missing().missing.begin();
+      std::map<hobject_t, pg_missing_item, hobject_t::BitwiseComparator>::const_iterator mend =
+	pg->pg_log.get_missing().get_items().end();
+      std::map<hobject_t, pg_missing_item, hobject_t::BitwiseComparator>::const_iterator mi =
+	pg->pg_log.get_missing().get_items().begin();
       for (; mi != mend; ++mi) {
 	fout << mi->first << " -> " << mi->second << std::endl;
 	if (!pg->missing_loc.needs_recovery(mi->first))
