@@ -1915,7 +1915,7 @@ void ReplicatedPG::do_op(OpRequestRef& op)
     }
     dout(20) << __func__ << "find_object_context got error " << r << dendl;
     if (op->may_write()) {
-      record_write_error(op, oid, r);
+      record_write_error(op, oid, nullptr, r);
     } else {
       osd->reply_op_error(op, r);
     }
@@ -2091,7 +2091,7 @@ void ReplicatedPG::do_op(OpRequestRef& op)
     dout(20) << __func__ << " returned an error: " << r << dendl;
     close_op_ctx(ctx);
     if (op->may_write()) {
-      record_write_error(op, oid, r);
+      record_write_error(op, oid, nullptr, r);
     } else {
       osd->reply_op_error(op, r);
     }
@@ -2146,7 +2146,7 @@ void ReplicatedPG::do_op(OpRequestRef& op)
 }
 
 void ReplicatedPG::record_write_error(OpRequestRef op, const hobject_t &soid,
-				      int r)
+				      MOSDOpReply *orig_reply, int r)
 {
   dout(20) << __func__ << " r=" << r << dendl;
   assert(op->may_write());
@@ -2165,9 +2165,11 @@ void ReplicatedPG::record_write_error(OpRequestRef op, const hobject_t &soid,
 	dout(20) << "finished record_write_error r=" << r << dendl;
 	int flags = CEPH_OSD_FLAG_ACK | CEPH_OSD_FLAG_ONDISK;
 	MOSDOp *m = static_cast<MOSDOp*>(op->get_req());
-	MOSDOpReply *reply = new MOSDOpReply(m, r, get_osdmap()->get_epoch(),
-					     flags, true);
-	reply->set_reply_versions(eversion_t(), 0);
+	MOSDOpReply *reply = orig_reply;
+	if (reply == nullptr) {
+	  reply = new MOSDOpReply(m, r, get_osdmap()->get_epoch(),
+				  flags, true);
+	}
 	dout(10) << " sending commit on " << *m << " " << reply << dendl;
 	osd->send_message_osd_client(reply, m->get_connection());
       }
@@ -3044,9 +3046,20 @@ void ReplicatedPG::execute_ctx(OpContext *ctx)
   if (ctx->update_log_only) {
     dout(20) << __func__ << " update_log_only -- result=" << result << dendl;
     assert(result < 0);
-    // just append to pg log for dup detection
+    // save just what we need from ctx
+    MOSDOpReply *reply = ctx->reply;
+    ctx->reply = nullptr;
+    reply->claim_op_out_data(ctx->ops);
+    reply->get_header().data_off = ctx->data_off;
     close_op_ctx(ctx);
-    record_write_error(op, soid, result);
+
+    if (result == -ENOENT) {
+      reply->set_enoent_reply_versions(info.last_update,
+				       info.last_user_version);
+    }
+    reply->add_flags(CEPH_OSD_FLAG_ACK | CEPH_OSD_FLAG_ONDISK);
+    // append to pg log for dup detection - don't save buffers for now
+    record_write_error(op, soid, reply, result);
     return;
   }
 
