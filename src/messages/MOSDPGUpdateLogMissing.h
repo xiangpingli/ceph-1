@@ -20,7 +20,7 @@
 
 class MOSDPGUpdateLogMissing : public Message {
 
-  static const int HEAD_VERSION = 1;
+  static const int HEAD_VERSION = 2;
   static const int COMPAT_VERSION = 1;
 
 
@@ -30,6 +30,9 @@ public:
   shard_id_t from;
   ceph_tid_t rep_tid;
   list<pg_log_entry_t> entries;
+  bool handle_missing; // whether this sent for lost/missing objects,
+		       // or just for adding error entries for dup
+		       // detection
 
   epoch_t get_epoch() const { return map_epoch; }
   spg_t get_pgid() const { return pgid; }
@@ -43,13 +46,15 @@ public:
     spg_t pgid,
     shard_id_t from,
     epoch_t epoch,
+    bool handle_missing,
     ceph_tid_t rep_tid)
     : Message(MSG_OSD_PG_UPDATE_LOG_MISSING, HEAD_VERSION, COMPAT_VERSION),
       map_epoch(epoch),
       pgid(pgid),
       from(from),
       rep_tid(rep_tid),
-      entries(entries) {}
+      entries(entries),
+      handle_missing(handle_missing) {}
 
 private:
   ~MOSDPGUpdateLogMissing() {}
@@ -59,7 +64,8 @@ public:
   void print(ostream& out) const {
     out << "pg_update_log_missing(" << pgid << " epoch " << map_epoch
 	<< " rep_tid " << rep_tid
-	<< " entries " << entries << ")";
+	<< " entries " << entries << " handle_missing " << handle_missing
+	<< ")";
   }
 
   void encode_payload(uint64_t features) {
@@ -68,6 +74,7 @@ public:
     ::encode(from, payload);
     ::encode(rep_tid, payload);
     ::encode(entries, payload);
+    ::encode(handle_missing, payload);
   }
   void decode_payload() {
     bufferlist::iterator p = payload.begin();
@@ -76,6 +83,11 @@ public:
     ::decode(from, p);
     ::decode(rep_tid, p);
     ::decode(entries, p);
+    if (header.version >= 2) {
+      ::decode(handle_missing, p);
+    } else {
+      handle_missing = true;
+    }
   }
 };
 
