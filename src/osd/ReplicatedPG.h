@@ -903,11 +903,16 @@ protected:
 
   /**
    * Merge entries atomically into all actingbackfill osds
-   * adjusting missing and recovery state as necessary
+   * adjusting missing and recovery state as necessary.
+   *
+   * Also used to store error log entries for dup detection.
+   * When handle_missing is false, stats are not marked invalid
+   * and missing object functionality is skipped.
    */
   void submit_log_entries(
     const list<pg_log_entry_t> &entries,
     ObcLockManager &&manager,
+    bool handle_missing,
     boost::optional<std::function<void(void)> > &&on_complete);
   struct LogUpdateCtx {
     boost::intrusive_ptr<RepGather> repop;

@@ -2276,6 +2276,7 @@ public:
 
   void append_log_entries_update_missing(
     const list<pg_log_entry_t> &entries,
+    bool invalidate_stats,
     ObjectStore::Transaction &t);
 
   /**
@@ -2284,6 +2285,7 @@ public:
    */
   void merge_new_log_entries(
     const list<pg_log_entry_t> &entries,
+    bool handle_missing,
     ObjectStore::Transaction &t);
 
   void reset_interval_flush();
