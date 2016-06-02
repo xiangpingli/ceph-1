@@ -17,6 +17,7 @@
 #define MDS_CONTEXT_H
 
 #include "include/Context.h"
+#include "common/Finisher.h"
 
 class MDSRank;
 
@@ -77,6 +78,7 @@ public:
 
 class MDSIOContextBase : public MDSContext
 {
+public:
     void complete(int r);
 };
 
@@ -135,11 +137,39 @@ public:
   C_IO_Wrapper(MDSRank *mds_, MDSInternalContextBase *wrapped_) : MDSIOContext(mds_), wrapped(wrapped_) {
     assert(wrapped != NULL);
   }
+
+  ~C_IO_Wrapper() {
+    delete wrapped;
+    wrapped = nullptr;
+  }
+
   virtual void finish(int r) {
     wrapped->complete(r);
   }
 };
 
+/**
+ * Like C_OnFinisher but cancellable, in which case we do
+ * cleanup manually instead of handling it to the finisher.
+ */
+class MDSIOFinisher: public Context {
+  C_IO_Wrapper *con;
+  Finisher *fin;
+public:
+  MDSIOFinisher(C_IO_Wrapper *c, Finisher *f) : con(c), fin(f) {
+    assert(fin != NULL);
+    assert(con != NULL);
+  }
+
+  ~MDSIOFinisher() {
+    delete con;
+    con = nullptr;
+  }
+
+  void finish(int r) {
+    fin->queue(con, r);
+  }
+};
 
 /**
  * Gather needs a default-constructable class
