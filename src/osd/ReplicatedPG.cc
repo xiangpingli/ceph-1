@@ -2160,6 +2160,7 @@ void ReplicatedPG::record_write_error(OpRequestRef op, const hobject_t &soid,
   submit_log_entries(
     entries,
     std::move(lock_manager),
+    false,
     boost::optional<std::function<void(void)> >(
       [=]() {
 	dout(20) << "finished record_write_error r=" << r << dendl;
@@ -8673,6 +8674,7 @@ void ReplicatedPG::simple_opc_submit(OpContextUPtr ctx)
 void ReplicatedPG::submit_log_entries(
   const list<pg_log_entry_t> &entries,
   ObcLockManager &&manager,
+  bool handle_missing,
   boost::optional<std::function<void(void)> > &&on_complete)
 {
   dout(10) << __func__ << entries << dendl;
@@ -8681,7 +8683,7 @@ void ReplicatedPG::submit_log_entries(
   ObjectStore::Transaction t;
 
   eversion_t old_last_update = info.last_update;
-  merge_new_log_entries(entries, t);
+  merge_new_log_entries(entries, handle_missing, t);
 
   boost::intrusive_ptr<RepGather> repop;
   set<pg_shard_t> waiting_on;
@@ -8704,6 +8706,7 @@ void ReplicatedPG::submit_log_entries(
 	spg_t(info.pgid.pgid, i->shard),
 	pg_whoami.shard,
 	get_osdmap()->get_epoch(),
+	handle_missing,
 	repop->rep_tid);
       osd->send_message_osd_cluster(
 	peer.osd, m, get_osdmap()->get_epoch());
@@ -9721,7 +9724,7 @@ void ReplicatedPG::do_update_log_missing(OpRequestRef &op)
     op->get_req());
   assert(m->get_type() == MSG_OSD_PG_UPDATE_LOG_MISSING);
   ObjectStore::Transaction t;
-  append_log_entries_update_missing(m->entries, t);
+  append_log_entries_update_missing(m->entries, m->handle_missing, t);
   // TODO FIX
 
   Context *complete = new FunctionContext(
@@ -9874,6 +9877,7 @@ void ReplicatedPG::mark_all_unfound_lost(
   submit_log_entries(
     log_entries,
     std::move(manager),
+    true,
     boost::optional<std::function<void(void)> >(
       [=]() {
 	requeue_ops(waiting_for_all_missing);

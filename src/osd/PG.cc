@@ -4547,26 +4547,33 @@ void PG::share_pg_info()
 
 void PG::append_log_entries_update_missing(
   const list<pg_log_entry_t> &entries,
+  bool handle_missing,
   ObjectStore::Transaction &t)
 {
   assert(!entries.empty());
   assert(entries.begin()->version > info.last_update);
 
-  PGLogEntryHandler rollbacker;
-  pg_log.append_new_log_entries(
-    info.last_backfill,
-    info.last_backfill_bitwise,
-    entries,
-    &rollbacker);
-  rollbacker.apply(this, &t);
-  info.last_update = pg_log.get_head();
+  if (handle_missing) {
+    PGLogEntryHandler rollbacker;
+    pg_log.append_new_log_entries(info.last_backfill,
+				  info.last_backfill_bitwise,
+				  entries,
+				  &rollbacker);
+    rollbacker.apply(this, &t);
+    info.last_update = pg_log.get_head();
+    info.stats.stats_invalid = true;
+  } else {
+    for (auto &entry : entries) {
+      pg_log.add(entry);
+    }
+    info.last_update = pg_log.get_head();
+  }
 
   if (pg_log.get_missing().num_missing() == 0) {
     // advance last_complete since nothing else is missing!
     info.last_complete = info.last_update;
   }
 
-  info.stats.stats_invalid = true;
   dirty_info = true;
   write_if_dirty(t);
 }
@@ -4574,12 +4581,13 @@ void PG::append_log_entries_update_missing(
 
 void PG::merge_new_log_entries(
   const list<pg_log_entry_t> &entries,
+  bool handle_missing,
   ObjectStore::Transaction &t)
 {
   dout(10) << __func__ << " " << entries << dendl;
   assert(is_primary());
 
-  append_log_entries_update_missing(entries, t);
+  append_log_entries_update_missing(entries, handle_missing, t);
   for (set<pg_shard_t>::const_iterator i = actingbackfill.begin();
        i != actingbackfill.end();
        ++i) {
@@ -4598,8 +4606,15 @@ void PG::merge_new_log_entries(
       NULL,
       this);
     pinfo.last_update = info.last_update;
-    pinfo.stats.stats_invalid = true;
+    if (handle_missing) {
+      pinfo.stats.stats_invalid = true;
+    }
   }
+
+  if (!handle_missing) {
+    return;
+  }
+
   for (auto &&i: entries) {
     missing_loc.rebuild(
       i.soid,
