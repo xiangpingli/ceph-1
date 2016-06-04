@@ -1380,18 +1380,6 @@ void CDir::mark_complete() {
   remove_bloom();
 }
 
-void CDir::first_get()
-{
-  inode->get(CInode::PIN_DIRFRAG);
-}
-
-void CDir::last_put()
-{
-  inode->put(CInode::PIN_DIRFRAG);
-}
-
-
-
 /******************************************************************************
  * FETCH and COMMIT
  */
