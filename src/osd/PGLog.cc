@@ -589,7 +589,8 @@ void PGLog::append_log_entries_update_missing(
       ldpp_dout(dpp, 20) << "update missing, append " << ne << dendl;
       log->index(ne);
     }
-    if (cmp(p->soid, last_backfill, last_backfill_bitwise) <= 0) {
+    if (cmp(p->soid, last_backfill, last_backfill_bitwise) <= 0 &&
+	!p->is_error()) {
       missing.add_next_event(*p);
       if (rollbacker) {
 	// hack to match PG::mark_all_unfound_lost
