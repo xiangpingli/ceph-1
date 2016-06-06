@@ -24,6 +24,11 @@
 
 namespace ceph {
 
+  namespace dmc = crimson::dmclock;
+
+  enum class osd_op_type_t {
+    client, osd_subop, bg_snaptrim, bg_recovery, bg_scrub };
+
   template <typename T, typename K>
   class mClockQueue : public OpQueue <T, K> {
 
@@ -198,15 +203,15 @@ namespace ceph {
 #if 0
 	if (!empty()) {
 	  f->dump_int("first_item_cost", front().first);
-#endif
 	}
+#endif
       }
     };
 
     using SubQueues = std::map<priority_t, SubQueue>;
 
     SubQueues                                high_queue;
-    crimson::dmclock::PullPriorityQueue<K,T> queue;
+    crimson::dmclock::PullPriorityQueue<osd_op_type_t,T> queue;
     // when enqueue_front is called, rather than try to re-calc tags
     // to put in mClock priority queue, we'll just keep a separate
     // list from which we dequeue items first, and only when it's
@@ -244,20 +249,28 @@ namespace ceph {
     }
 #endif
 
+    static double cost_to_tag(unsigned cost) {
+      static const double log_of_2 = log(2.0);
+      return log(cost) / log_of_2;
+    }
+
   public:
 
-    mClockQueue() {
+    dmc::ClientInfo client_info_f(K client) {
+      static dmc::ClientInfo _default(1.0, 1.0, 1.0);
+      return _default;
+    }
+
+    mClockQueue() :
+      queue(&client_info_f, true)
+    {
+      // empty
     }
 
     unsigned length() const override final {
       unsigned total = 0;
       total += queue_front.size();
-      for (typename SubQueues::const_iterator i = queue.begin();
-	   i != queue.end();
-	   ++i) {
-	assert(i->second.length());
-	total += i->second.length();
-      }
+      total += queue.request_count();
       for (typename SubQueues::const_iterator i = high_queue.begin();
 	   i != high_queue.end();
 	   ++i) {
@@ -267,8 +280,8 @@ namespace ceph {
       return total;
     }
 
-    void remove_by_filter(
-      std::function<bool (T)> f) override final {
+    void remove_by_filter(std::function<bool (T)> f) override final {
+#if 0 // REPLACE
       for (typename SubQueues::iterator i = queue.begin();
 	   i != queue.end();
 	) {
@@ -282,6 +295,7 @@ namespace ceph {
 	  ++i;
 	}
       }
+#endif
       for (typename SubQueues::iterator i = high_queue.begin();
 	   i != high_queue.end();
 	) {
@@ -295,6 +309,7 @@ namespace ceph {
     }
 
     void remove_by_class(K k, std::list<T> *out = 0) override final {
+#if 0 // REPLACE
       for (typename SubQueues::iterator i = queue.begin();
 	   i != queue.end();
 	) {
@@ -307,6 +322,7 @@ namespace ceph {
 	  ++i;
 	}
       }
+#endif
       for (typename SubQueues::iterator i = high_queue.begin();
 	   i != high_queue.end();
 	) {
@@ -328,25 +344,17 @@ namespace ceph {
     }
 
     void enqueue(K cl, unsigned priority, unsigned cost, T item) override final {
-      if (cost < min_cost)
-	cost = min_cost;
-      if (cost > max_tokens_per_subqueue)
-	cost = max_tokens_per_subqueue;
+      double tag_cost = cost_to_tag(cost);
+      
       create_queue(priority)->enqueue(cl, cost, item);
     }
 
     void enqueue_front(K cl, unsigned priority, unsigned cost, T item) override final {
-      if (cost < min_cost)
-	cost = min_cost;
-      if (cost > max_tokens_per_subqueue)
-	cost = max_tokens_per_subqueue;
-      create_queue(priority)->enqueue_front(cl, cost, item);
+      queue_front.emplace_front(std::pair<K,T>(cl, item));
     }
 
     bool empty() const override final {
-      assert(total_priority >= 0);
-      assert((total_priority == 0) || !(queue.empty()));
-      return queue.empty() && high_queue.empty();
+      return queue.empty() && high_queue.empty() && queue_front.empty();
     }
 
     T dequeue() override final {
