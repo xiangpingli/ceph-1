@@ -662,9 +662,6 @@ public:
 
 
   // -- reference counting --
-  void first_get();
-  void last_put();
-
   void request_pin_get() {
     if (request_pins == 0) get(PIN_REQUEST);
     request_pins++;
