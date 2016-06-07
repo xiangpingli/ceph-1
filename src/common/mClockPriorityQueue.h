@@ -14,12 +14,14 @@
 
 #pragma once
 
+
+#include <functional>
+#include <map>
+#include <list>
+
 #include "common/Formatter.h"
 #include "common/OpQueue.h"
 #include "dmclock_server.h"
-
-#include <map>
-#include <list>
 
 
 namespace ceph {
@@ -194,29 +196,22 @@ namespace ceph {
       }
 
       void dump(ceph::Formatter *f) const {
-#if 0
-	f->dump_int("tokens", tokens);
-	f->dump_int("max_tokens", max_tokens);
-#endif
 	f->dump_int("size", size);
 	f->dump_int("num_keys", q.size());
-#if 0
-	if (!empty()) {
-	  f->dump_int("first_item_cost", front().first);
-	}
-#endif
       }
     };
 
     using SubQueues = std::map<priority_t, SubQueue>;
 
-    SubQueues                                high_queue;
+    SubQueues high_queue;
+
     crimson::dmclock::PullPriorityQueue<osd_op_type_t,T> queue;
+
     // when enqueue_front is called, rather than try to re-calc tags
     // to put in mClock priority queue, we'll just keep a separate
     // list from which we dequeue items first, and only when it's
     // empty do we use queue.
-    std::list<std::pair<K,T>>                queue_front;
+    std::list<std::pair<K,T>> queue_front;
 
 #if 0
     SubQueue *create_queue(priority_t priority) {
@@ -262,7 +257,8 @@ namespace ceph {
     }
 
     mClockQueue() :
-      queue(&client_info_f, true)
+      queue(std::bind(&mClockQueue::client_info_f, this, std::placeholders::_1),
+	    true)
     {
       // empty
     }
@@ -271,9 +267,7 @@ namespace ceph {
       unsigned total = 0;
       total += queue_front.size();
       total += queue.request_count();
-      for (typename SubQueues::const_iterator i = high_queue.begin();
-	   i != high_queue.end();
-	   ++i) {
+      for (auto i = high_queue.cbegin(); i != high_queue.cend(); ++i) {
 	assert(i->second.length());
 	total += i->second.length();
       }
@@ -345,8 +339,8 @@ namespace ceph {
 
     void enqueue(K cl, unsigned priority, unsigned cost, T item) override final {
       double tag_cost = cost_to_tag(cost);
-      
-      create_queue(priority)->enqueue(cl, cost, item);
+      osd_op_type_t op_type = osd_op_type_t::client;
+      queue.add_request(item, op_type, tag_cost);
     }
 
     void enqueue_front(K cl, unsigned priority, unsigned cost, T item) override final {
@@ -369,42 +363,19 @@ namespace ceph {
 	return ret;
       }
 
-      // if there are multiple buckets/subqueues with sufficient tokens,
-      // we behave like a strict priority queue among all subqueues that
-      // are eligible to run.
-      for (typename SubQueues::iterator i = queue.begin();
-	   i != queue.end();
-	   ++i) {
-	assert(!(i->second.empty()));
-	if (i->second.front().first < i->second.num_tokens()) {
-	  T ret = i->second.front().second;
-	  unsigned cost = i->second.front().first;
-	  i->second.take_tokens(cost);
-	  i->second.pop_front();
-	  if (i->second.empty()) {
-	    remove_queue(i->first);
-	  }
-	  distribute_tokens(cost);
-	  return ret;
-	}
+      if (!queue_front.empty()) {
+	T ret = queue_front.front().second;
+	queue_front.pop_front();
+	return ret;
       }
 
-      // if no subqueues have sufficient tokens, we behave like a strict
-      // priority queue.
-      T ret = queue.rbegin()->second.front().second;
-      unsigned cost = queue.rbegin()->second.front().first;
-      queue.rbegin()->second.pop_front();
-      if (queue.rbegin()->second.empty()) {
-	remove_queue(queue.rbegin()->first);
-      }
-      distribute_tokens(cost);
-      return ret;
+      auto pr = queue.pull_request();
+      assert(pr.is_retn());
+      auto retn = pr.getRetn();
+      return *(retn.request);
     }
 
     void dump(ceph::Formatter *f) const override final {
-      f->dump_int("total_priority", total_priority);
-      f->dump_int("max_tokens_per_subqueue", max_tokens_per_subqueue);
-      f->dump_int("min_cost", min_cost);
       f->open_array_section("high_queues");
       for (typename SubQueues::const_iterator p = high_queue.begin();
 	   p != high_queue.end();
@@ -415,15 +386,13 @@ namespace ceph {
 	f->close_section();
       }
       f->close_section();
-      f->open_array_section("queues");
-      for (typename SubQueues::const_iterator p = queue.begin();
-	   p != queue.end();
-	   ++p) {
-	f->open_object_section("subqueue");
-	f->dump_int("priority", p->first);
-	p->second.dump(f);
-	f->close_section();
-      }
+
+      f->open_object_section("queue_front");
+      f->dump_int("size", queue_front.size());
+      f->close_section();
+
+      f->open_object_section("queue");
+      f->dump_int("size", queue.request_count());
       f->close_section();
     }
   };
