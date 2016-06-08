@@ -47,6 +47,7 @@ using namespace std;
 #include "common/sharedptr_registry.hpp"
 #include "common/WeightedPriorityQueue.h"
 #include "common/PrioritizedQueue.h"
+#include "common/mClockPriorityQueue.h"
 #include "messages/MOSDOp.h"
 #include "include/Spinlock.h"
 
@@ -1730,9 +1731,11 @@ private:
   friend struct C_CompleteSplits;
 
   // -- op queue --
-  enum io_queue {
+  enum class io_queue {
     prioritized,
-    weightedpriority};
+    weightedpriority,
+    mclock_opclass // may want other mclock variations later that include client
+  };
   const io_queue op_queue;
   const unsigned int op_prio_cutoff;
 
@@ -1751,16 +1754,20 @@ private:
 	io_queue opqueue)
 	: sdata_lock(lock_name.c_str(), false, true, false, cct),
 	  sdata_op_ordering_lock(ordering_lock.c_str(), false, true, false, cct) {
-	    if (opqueue == weightedpriority) {
+	    if (opqueue == io_queue::weightedpriority) {
 	      pqueue = std::unique_ptr
 		<WeightedPriorityQueue< pair<PGRef, PGQueueable>, entity_inst_t>>(
 		  new WeightedPriorityQueue< pair<PGRef, PGQueueable>, entity_inst_t>(
 		    max_tok_per_prio, min_cost));
-	    } else if (opqueue == prioritized) {
+	    } else if (opqueue == io_queue::prioritized) {
 	      pqueue = std::unique_ptr
 		<PrioritizedQueue< pair<PGRef, PGQueueable>, entity_inst_t>>(
 		  new PrioritizedQueue< pair<PGRef, PGQueueable>, entity_inst_t>(
 		    max_tok_per_prio, min_cost));
+	    } else if (opqueue == io_queue::mclock_opclass) {
+	      pqueue = std::unique_ptr
+		<ceph::mClockQueue< pair<PGRef, PGQueueable>, entity_inst_t>>(
+		  new ceph::mClockQueue< pair<PGRef, PGQueueable>, entity_inst_t>());
 	    }
 	  }
     };
@@ -2402,11 +2409,16 @@ protected:
   io_queue get_io_queue() const {
     if (cct->_conf->osd_op_queue == "debug_random") {
       srand(time(NULL));
-      return (rand() % 2 < 1) ? prioritized : weightedpriority;
+      unsigned which = rand() % 3;
+      return 0 == which ?
+	io_queue::prioritized :
+	(1 == which ? io_queue::weightedpriority: io_queue::mclock_opclass);
     } else if (cct->_conf->osd_op_queue == "wpq") {
-      return weightedpriority;
+      return io_queue::weightedpriority;
+    } else if (cct->_conf->osd_op_queue == "mclock_opclass") {
+      return io_queue::mclock_opclass;
     } else {
-      return prioritized;
+      return io_queue::prioritized;
     }
   }
 
