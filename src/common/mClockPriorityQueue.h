@@ -213,37 +213,6 @@ namespace ceph {
     // empty do we use queue.
     std::list<std::pair<K,T>> queue_front;
 
-#if 0
-    SubQueue *create_queue(priority_t priority) {
-      typename SubQueues::iterator p = queue.find(priority);
-      if (p != queue.end()) {
-	return &p->second;
-      }
-      total_priority += priority;
-      SubQueue *sq = &queue[priority];
-      sq->set_max_tokens(max_tokens_per_subqueue);
-      return sq;
-    }
-
-    void remove_queue(unsigned priority) {
-      assert(queue.count(priority));
-      queue.erase(priority);
-      total_priority -= priority;
-      assert(total_priority >= 0);
-    }
-
-    void distribute_tokens(unsigned cost) {
-      if (total_priority == 0) {
-	return;
-      }
-      for (typename SubQueues::iterator i = queue.begin();
-	   i != queue.end();
-	   ++i) {
-	i->second.put_tokens(((i->first * cost) / total_priority) + 1);
-      }
-    }
-#endif
-
     static double cost_to_tag(unsigned cost) {
       static const double log_of_2 = log(2.0);
       return log(cost) / log_of_2;
@@ -251,7 +220,15 @@ namespace ceph {
 
   public:
 
+#if 0
     dmc::ClientInfo client_info_f(K client) {
+      static dmc::ClientInfo _default(1.0, 1.0, 1.0);
+      return _default;
+    }
+#endif
+
+    
+    dmc::ClientInfo client_info_f(osd_op_type_t client) {
       static dmc::ClientInfo _default(1.0, 1.0, 1.0);
       return _default;
     }
@@ -371,7 +348,7 @@ namespace ceph {
 
       auto pr = queue.pull_request();
       assert(pr.is_retn());
-      auto retn = pr.getRetn();
+      auto& retn = pr.get_retn();
       return *(retn.request);
     }
 
