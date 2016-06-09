@@ -45,6 +45,9 @@ function add_something() {
     local payload=ABCDEF
     echo $payload > $dir/ORIGINAL
     rados --pool $poolname put $obj $dir/ORIGINAL || return 1
+    # Ignore errors for EC pools
+    rados --pool $poolname setomapheader $obj hdr-$obj || true
+    rados --pool $poolname setomapval $obj key-$obj val-$obj || true
 }
 
 #
@@ -358,7 +361,7 @@ function TEST_list_missing_erasure_coded() {
 function TEST_corrupt_scrub_replicated() {
     local dir=$1
     local poolname=csr_pool
-    local total_objs=4
+    local total_objs=7
 
     setup $dir || return 1
     run_mon $dir a --osd_pool_default_size=2 || return 1
@@ -369,17 +372,56 @@ function TEST_corrupt_scrub_replicated() {
     ceph osd pool create $poolname 1 1 || return 1
     wait_for_clean || return 1
 
-    for i in $(seq 0 $total_objs) ; do
-      objname=OBJ${i}
-      add_something $dir $poolname $objname
-      if [ $i = "0" ];
-      then
-        local payload=UVWXYZ
-        echo $payload > $dir/CORRUPT
-        objectstore_tool $dir $(expr $i % 2) $objname set-bytes $dir/CORRUPT || return 1
-      else
-        objectstore_tool $dir $(expr $i % 2) $objname remove || return 1
-      fi
+    local scrub_only=0
+    for i in $(seq 1 $total_objs) ; do
+        objname=OBJ${i}
+        add_something $dir $poolname $objname
+
+        case $i in
+        1)
+            # Size (deep scrub data_digest too)
+            local payload=UVWXYZZZ
+            echo $payload > $dir/CORRUPT
+            objectstore_tool $dir $(expr $i % 2) $objname set-bytes $dir/CORRUPT || return 1
+            scrub_only=$(expr $scrub_only + 1)
+            ;;
+
+        2)
+            # digest (deep scrub only)
+            local payload=UVWXYZ
+            echo $payload > $dir/CORRUPT
+            objectstore_tool $dir $(expr $i % 2) $objname set-bytes $dir/CORRUPT || return 1
+            ;;
+
+        3)
+             # missing
+             objectstore_tool $dir $(expr $i % 2) $objname remove || return 1
+             scrub_only=$(expr $scrub_only + 1)
+             ;;
+
+         4)
+             # Modify omap value (deep scrub only)
+             objectstore_tool $dir $(expr $i % 2) $objname set-omap key-$objname $dir/CORRUPT || return 1
+             ;;
+
+         5)
+            # Delete omap key (deep scrub only)
+            objectstore_tool $dir $(expr $i % 2) $objname rm-omap key-$objname || return 1
+            ;;
+
+         6)
+            # Add extra omap key (deep scrub only)
+            echo extra > $dir/extra-val
+            objectstore_tool $dir $(expr $i % 2) $objname set-omap key2-$objname $dir/extra-val || return 1
+            rm $dir/extra-val
+            ;;
+         7)
+            # Modify omap header (deep scrub only)
+            echo newheader > $dir/hdr
+            objectstore_tool $dir $(expr $i % 2) $objname set-omaphdr $dir/hdr || return 1
+            rm $dir/hdr
+            ;;
+        esac
     done
 
     local pg=$(get_pg $poolname OBJ0)
@@ -395,7 +437,65 @@ function TEST_corrupt_scrub_replicated() {
     # Get epoch for repair-get requests
     epoch=$(jq .epoch $dir/json)
     # Check object count
+    test $(jq '.inconsistents | length' $dir/json) = "$scrub_only" || return 1
+
+    jq '.inconsistents | sort' > $dir/checkcsjson << EOF
+{"epoch":54,"inconsistents":[{"object":{"name":"OBJ1","nspace":"","locator":"",
+"snap":"head"},"errors":["size_mismatch"],"shards":[{"osd":0,"size":7,
+"errors":[]},{"osd":1,"size":9,"errors":["size_mismatch"]}]},{"object":
+{"name":"OBJ3","nspace":"","locator":"","snap":"head"},"errors":["missing"],
+"shards":[{"osd":0,"size":7,"errors":[]},{"osd":1,"errors":["missing"]}]}]}
+EOF
+
+    jq '.inconsistents | sort' $dir/json > $dir/csjson
+    diff -y $dir/checkcsjson $dir/csjson || return 1
+
+    pg_deep_scrub $pg
+
+    rados list-inconsistent-pg $poolname > $dir/json || return 1
+    # Check pg count
+    test $(jq '. | length' $dir/json) = "1" || return 1
+    # Check pgid
+    test $(jq -r '.[0]' $dir/json) = $pg || return 1
+
+    rados list-inconsistent-obj $pg > $dir/json || return 1
+    # Get epoch for repair-get requests
+    epoch=$(jq .epoch $dir/json)
+    # Check object count
     test $(jq '.inconsistents | length' $dir/json) = "$total_objs" || return 1
+
+    jq '.inconsistents | sort' > $dir/checkcsjson << EOF
+{"epoch":61,"inconsistents":[{"object":{"name":"OBJ1","nspace":"","locator":"",
+"snap":"head"},"errors":["data_digest_mismatch","size_mismatch"],"shards":
+[{"osd":0,"size":7,"omap_digest":"0xef54f3bc","data_digest":"0x2ddbf8f5",
+"errors":[]},{"osd":1,"size":9,"omap_digest":"0xef54f3bc","data_digest":
+"0x2d4a11c2","errors":["data_digest_mismatch","size_mismatch"]}]},{"object":
+{"name":"OBJ2","nspace":"","locator":"","snap":"head"},"errors":
+["data_digest_mismatch"],"shards":[{"osd":0,"size":7,"omap_digest":"0xdf2f1440",
+"data_digest":"0x578a4830","errors":["data_digest_mismatch"]},{"osd":1,"size":7,
+"omap_digest":"0xdf2f1440","data_digest":"0x2ddbf8f5","errors":[]}]},{"object":
+{"name":"OBJ3","nspace":"","locator":"","snap":"head"},"errors":["missing"],
+"shards":[{"osd":0,"size":7,"omap_digest":"0x33a264bb","data_digest":
+"0x2ddbf8f5","errors":[]},{"osd":1,"errors":["missing"]}]},{"object":{"name":
+"OBJ4","nspace":"","locator":"","snap":"head"},"errors":
+["omap_digest_mismatch"],"shards":[{"osd":0,"size":7,"omap_digest":"0x98c0d4b9",
+"data_digest":"0x2ddbf8f5","errors":[]},{"osd":1,"size":7,"omap_digest":
+"0xbfd8dbb8","data_digest":"0x2ddbf8f5","errors":[]}]},{"object":{"name":"OBJ5",
+"nspace":"","locator":"","snap":"head"},"errors":["omap_digest_mismatch"],
+"shards":[{"osd":0,"size":7,"omap_digest":"0x5355ab43","data_digest":
+"0x2ddbf8f5","errors":[]},{"osd":1,"size":7,"omap_digest":"0xdeb72ab3",
+"data_digest":"0x2ddbf8f5","errors":[]}]},{"object":{"name":"OBJ6","nspace":"",
+"locator":"","snap":"head"},"errors":["omap_digest_mismatch"],"shards":[{"osd":
+0,"size":7,"omap_digest":"0xd986f688","data_digest":"0x2ddbf8f5","errors":[]},
+{"osd":1,"size":7,"omap_digest":"0x632e4cbf","data_digest":"0x2ddbf8f5",
+"errors":[]}]},{"object":{"name":"OBJ7","nspace":"","locator":"","snap":"head"},
+"errors":["omap_digest_mismatch"],"shards":[{"osd":0,"size":7,"omap_digest":
+"0x8fa33c44","data_digest":"0x2ddbf8f5","errors":[]},{"osd":1,"size":7,
+"omap_digest":"0x1d000c1b","data_digest":"0x2ddbf8f5","errors":[]}]}]}
+EOF
+
+    jq '.inconsistents | sort' $dir/json > $dir/csjson
+    diff -y $dir/checkcsjson $dir/csjson || return 1
 
     rados rmpool $poolname $poolname --yes-i-really-really-mean-it
     teardown $dir || return 1
