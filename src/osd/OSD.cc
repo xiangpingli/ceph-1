@@ -9326,3 +9326,19 @@ void OSD::PeeringWQ::_dequeue(list<PG*> *out) {
   }
   in_use.insert(got.begin(), got.end());
 }
+
+
+std::ostream& operator<<(std::ostream& out, const OSD::io_queue& q) {
+  switch(q) {
+  case OSD::io_queue::prioritized:
+    out << "prioritized";
+    break;
+  case OSD::io_queue::weightedpriority:
+    out << "weightedpriority";
+    break;
+  case OSD::io_queue::mclock_opclass:
+    out << "mclock opclass";
+    break;
+  }
+  return out;
+}
