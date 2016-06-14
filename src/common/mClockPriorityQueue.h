@@ -218,7 +218,8 @@ namespace ceph {
 
   public:
 
-    mClockQueue(const typename dmc::PullPriorityQueue<K,T>::ClientInfoFunc& info_func) :
+    mClockQueue(
+      const typename dmc::PullPriorityQueue<K,T>::ClientInfoFunc& info_func) :
       queue(info_func, true)
     {
       // empty
@@ -235,26 +236,16 @@ namespace ceph {
       return total;
     }
 
-    void remove_by_filter(std::function<bool (T)> f) override final {
-#if 0 // REPLACE
-      for (typename SubQueues::iterator i = queue.begin();
-	   i != queue.end();
-	) {
-	unsigned priority = i->first;
+    void remove_by_filter(std::function<bool (T)> filter) override final {
+      queue.remove_by_req_filter(filter);
+
+      queue_front.remove_if(
+	[&] (const std::pair<K,T>& p) { return filter(p.second); });
       
-	i->second.remove_by_filter(f);
-	if (i->second.empty()) {
-	  ++i;
-	  remove_queue(priority);
-	} else {
-	  ++i;
-	}
-      }
-#endif
       for (typename SubQueues::iterator i = high_queue.begin();
 	   i != high_queue.end();
 	) {
-	i->second.remove_by_filter(f);
+	i->second.remove_by_filter(filter);
 	if (i->second.empty()) {
 	  high_queue.erase(i++);
 	} else {
