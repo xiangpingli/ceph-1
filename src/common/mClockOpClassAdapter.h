@@ -15,6 +15,8 @@
 
 #pragma once
 
+#include "common/config.h"
+#include "common/ceph_context.h"
 
 #include "mClockPriorityQueue.h"
 
@@ -72,13 +74,10 @@ namespace ceph {
     }
   };
 
-  std::unique_ptr<mclock_op_tags_t> mclock_op_tags;
 
+  extern std::unique_ptr<mclock_op_tags_t> mclock_op_tags;
 
-  dmc::ClientInfo op_class_client_info_f(const osd_op_type_t& op_type) {
-    static dmc::ClientInfo _default(1.0, 1.0, 1.0);
-    return _default;
-  }
+  dmc::ClientInfo op_class_client_info_f(const osd_op_type_t& op_type);
 
 
 #if 0
@@ -90,44 +89,92 @@ namespace ceph {
 #endif
 
 
+  // This class exists to bridge the ceph code, which treats the class
+  // as the client, and the queue, where the class is
+  // osd_op_type_t. So this adpater class will transform calls
+  // appropriately.
   template<typename T, typename K>
-  class mClockOpClassQueue : public mClockQueue<T, osd_op_type_t> {
+  class mClockOpClassQueue : public OpQueue<T, K> {
+    using queue_t = mClockQueue<T, osd_op_type_t>;
 
-    using super = mClockQueue<T, osd_op_type_t>;
+    queue_t queue;
 
     double cost_factor;
 
-    public:
+  public:
     
     mClockOpClassQueue(CephContext *cct) :
-      super(&op_class_client_info_f),
+      queue(&op_class_client_info_f),
       cost_factor(cct->_conf->osd_op_queue_mclock_cost_factor)
     {
-      // 
+      // manage the singleton
+      if (!mclock_op_tags) {
+	mclock_op_tags.reset(new mclock_op_tags_t(cct));
+      }
     }
 
-#if 0
-    void enqueue_strict(K cl, unsigned priority, T item) override final {
-      high_queue[priority].enqueue(cl, 0, item);
+
+    inline unsigned length() const override final {
+      return queue.length();
     }
 
-    
-    void enqueue_strict_front(K cl, unsigned priority, T item) override final {
-      high_queue[priority].enqueue_front(cl, 0, item);
+
+    // Ops will be removed f evaluates to true, f may have sideeffects
+    inline void remove_by_filter(
+      std::function<bool (T)> f) override final {
+      // FIX THIS
     }
 
-    
-    void enqueue(K cl, unsigned priority, unsigned cost, T item) override final {
-      double tag_cost = cost_to_tag(cost);
+
+    // Ops of this priority should be deleted immediately
+    inline void remove_by_class(K k, std::list<T> *out) override final {
+      // FIX THIS
+    }
+
+
+    inline void enqueue_strict(K cl, unsigned priority, T item) override final {
+      // TODO FIX
       osd_op_type_t op_type = osd_op_type_t::client;
-      queue.add_request(item, op_type, tag_cost);
+      queue.enqueue_strict(op_type, 0, item);
     }
 
-    
-    void enqueue_front(K cl, unsigned priority, unsigned cost, T item) override final {
-      queue_front.emplace_front(std::pair<K,T>(cl, item));
+
+    // Enqueue op in the front of the strict queue
+    inline void enqueue_strict_front(K cl, unsigned priority, T item) override final {
+      // FIX THIS
     }
-#endif
+
+
+    // Enqueue op in the back of the regular queue
+    inline void enqueue(K cl, unsigned priority, unsigned cost, T item) override final {
+      // FIX THIS
+    }
+
+
+    // Enqueue the op in the front of the regular queue
+    inline void enqueue_front(K cl, unsigned priority, unsigned cost, T item) override final {
+      // FIX THIS
+    }
+
+
+    // Returns if the queue is empty
+    inline bool empty() const override final {
+      return queue.empty();
+    }
+
+
+    // Return an op to be dispatch
+    inline T dequeue() override final {
+      return queue.dequeue();
+    }
+
+
+    // Formatted output of the queue
+    inline void dump(ceph::Formatter *f) const override final {
+    }
+
+
+    // Don't leak resources on destruction
   }; // class mClockOpClassQueue
   
 } // namespace ceph

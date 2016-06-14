@@ -47,7 +47,7 @@ using namespace std;
 #include "common/sharedptr_registry.hpp"
 #include "common/WeightedPriorityQueue.h"
 #include "common/PrioritizedQueue.h"
-#include "common/mClockOpClassBridge.h"
+#include "common/mClockOpClassAdapter.h"
 #include "messages/MOSDOp.h"
 #include "include/Spinlock.h"
 
