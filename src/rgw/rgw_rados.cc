@@ -11238,7 +11238,7 @@ int RGWRados::cls_bucket_list(rgw_bucket& bucket, int shard_id, rgw_obj_key& sta
 
   // Check if all the returned entries are consumed or not
   for (size_t i = 0; i < vcurrents.size(); ++i) {
-    if (vcurrents[i] != vends[i])
+    if (vcurrents[i] != vends[i] || (list_results.size() == 1 && r == -ENOENT))
       *is_truncated = true;
   }
   if (!m.empty())
