@@ -4334,7 +4334,7 @@ void Server::handle_remove_vxattr(MDRequestRef& mdr, CInode *cur,
 {
   MClientRequest *req = mdr->client_request;
   string name(req->get_path2());
-  if (name == "ceph.dir.layout") {
+  if (name.compare(0, 15, "ceph.dir.layout") == 0) {
     if (!cur->is_dir()) {
       respond_to_request(mdr, -ENODATA);
       return;
@@ -4475,7 +4475,7 @@ void Server::handle_client_removexattr(MDRequestRef& mdr)
   set<SimpleLock*> rdlocks, wrlocks, xlocks;
   file_layout_t *dir_layout = NULL;
   CInode *cur;
-  if (name == "ceph.dir.layout")
+  if (name.compare(0, 15, "ceph.dir.layout") == 0)
     cur = rdlock_path_pin_ref(mdr, 0, rdlocks, true, false, &dir_layout);
   else
     cur = rdlock_path_pin_ref(mdr, 0, rdlocks, true);
