@@ -3288,17 +3288,16 @@ void SyntheticClient::import_find(const char *base, const char *find, bool data)
 	if (data) {
 	  client->write(fd, "", 0, size);
 	} else {
-	  client->truncate(f.c_str(), size);
+	  client->ftruncate(fd, size);
 	}
-	client->close(fd);
 
-	//client->chmod(f.c_str(), mode & 0777);
-	client->chown(f.c_str(), uid, gid);
+	client->fchown(fd, uid, gid);
 
 	struct utimbuf ut;
 	ut.modtime = mtime;
 	ut.actime = mtime;
-	client->utime(f.c_str(), &ut);
+        client->futime(fd, &ut);
+        client->close(fd);
       }
     }
   }
