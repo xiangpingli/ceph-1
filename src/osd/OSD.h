@@ -49,7 +49,7 @@ using namespace std;
 #include "common/sharedptr_registry.hpp"
 #include "common/WeightedPriorityQueue.h"
 #include "common/PrioritizedQueue.h"
-#include "common/mClockOpClassAdapter.h"
+#include "osd/mClockOpClassAdapter.h"
 #include "messages/MOSDOp.h"
 #include "include/Spinlock.h"
 

@@ -379,7 +379,6 @@ set(libcommon_files
   xxHash/xxhash.c
   common/assert.cc
   common/run_cmd.cc
-  common/mClockOpClassAdapter.cc
   common/WorkQueue.cc
   common/ConfUtils.cc
   common/MemoryModel.cc
@@ -934,6 +933,7 @@ set(osd_srcs
   osd/ScrubStore.cc
   osd/osd_types.cc
   osd/ECUtil.cc
+  osd/mClockOpClassAdapter.cc
   ${osdc_osd_srcs})
 set(osd_mon_files
   mon/Monitor.cc)
