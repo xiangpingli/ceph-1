@@ -1702,6 +1702,7 @@ int SyntheticClient::dump_placement(string& fn) {
   int lstat_result = client->lstat(fn.c_str(), &stbuf);
   if (lstat_result < 0) {
     dout(0) << "lstat error for file " << fn << dendl;
+    client->close(fd);
     return lstat_result;
   }
     
@@ -3288,17 +3289,16 @@ void SyntheticClient::import_find(const char *base, const char *find, bool data)
 	if (data) {
 	  client->write(fd, "", 0, size);
 	} else {
-	  client->truncate(f.c_str(), size);
+	  client->ftruncate(fd, size);
 	}
-	client->close(fd);
 
-	//client->chmod(f.c_str(), mode & 0777);
-	client->chown(f.c_str(), uid, gid);
+	client->fchown(fd, uid, gid);
 
 	struct utimbuf ut;
 	ut.modtime = mtime;
 	ut.actime = mtime;
-	client->utime(f.c_str(), &ut);
+        client->futime(fd, &ut);
+        client->close(fd);
       }
     }
   }
@@ -3324,10 +3324,15 @@ int SyntheticClient::lookup_ino(inodeno_t ino)
 int SyntheticClient::chunk_file(string &filename)
 {
   int fd = client->open(filename.c_str(), O_RDONLY);
-  int ret;
+  if (fd < 0)
+    return fd;
 
   struct stat st;
-  client->fstat(fd, &st);
+  int ret = client->fstat(fd, &st);
+  if (ret < 0) {
+    client->close(fd);
+    return ret;
+  }
   uint64_t size = st.st_size;
   dout(0) << "file " << filename << " size is " << size << dendl;
 
@@ -3337,8 +3342,7 @@ int SyntheticClient::chunk_file(string &filename)
   memset(&inode, 0, sizeof(inode));
   inode.ino = st.st_ino;
   ret = client->fdescribe_layout(fd, &inode.layout);
-  if (ret < 0)
-    return ret;
+  assert(ret == 0); // otherwise fstat did a bad thing
 
   uint64_t pos = 0;
   bufferlist from_before;
