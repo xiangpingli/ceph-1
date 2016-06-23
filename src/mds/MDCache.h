@@ -564,11 +564,11 @@ public:
   }
 
   // [reconnect/rejoin caps]
-  map<CInode*,map<client_t, inodeno_t> >  reconnected_caps;   // inode -> client -> realmino
+  map<CInode*,map<client_t, pair<snapid_t, inodeno_t> > >  reconnected_caps;   // inode -> client -> snap_follows,realmino
   map<inodeno_t,map<client_t, snapid_t> > reconnected_snaprealms;  // realmino -> client -> realmseq
 
-  void add_reconnected_cap(CInode *in, client_t client, inodeno_t realm) {
-    reconnected_caps[in][client] = realm;
+  void add_reconnected_cap(CInode *in, client_t client, cap_reconnect_t& icr) {
+    reconnected_caps[in][client] = make_pair(icr.snap_follows, inodeno_t(icr.capinfo.snaprealm));
   }
   void add_reconnected_snaprealm(client_t client, inodeno_t ino, snapid_t seq) {
     reconnected_snaprealms[ino][client] = seq;
@@ -592,13 +592,15 @@ public:
 
   // cap imports.  delayed snap parent opens.
   //  realm inode -> client -> cap inodes needing to split to this realm
-  map<CInode*,map<client_t, set<inodeno_t> > > missing_snap_parents; 
+  map<CInode*,set<CInode*> > missing_snap_parents;
   map<client_t,set<CInode*> > delayed_imported_caps;
 
   void do_cap_import(Session *session, CInode *in, Capability *cap,
 		     uint64_t p_cap_id, ceph_seq_t p_seq, ceph_seq_t p_mseq,
 		     int peer, int p_flags);
   void do_delayed_cap_imports();
+  void rebuild_need_snapflush(CInode *head_in, SnapRealm *realm, client_t client,
+			      snapid_t snap_follows);
   void check_realm_past_parents(SnapRealm *realm);
   void open_snap_parents();
 
