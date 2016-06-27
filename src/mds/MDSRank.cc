@@ -17,7 +17,10 @@
 
 #include "messages/MClientRequestForward.h"
 #include "messages/MMDSMap.h"
+#include "messages/MCommand.h"
+#include "messages/MCommandReply.h"
 
+#include "MDSDaemon.h"
 #include "MDSMap.h"
 #include "SnapClient.h"
 #include "SnapServer.h"
@@ -1777,13 +1780,26 @@ bool MDSRankDispatcher::handle_asok_command(
   return true;
 }
 
+class C_MDS_Send_Command_Reply : public MDSInternalContext
+{
+protected:
+  MCommand *m;
+public:
+  C_MDS_Send_Command_Reply(MDSRank *_mds, MCommand *_m) :
+    MDSInternalContext(_mds), m(_m) { m->get(); }
+  void finish (int r) {
+    bufferlist bl;
+    MDSDaemon::send_command_reply(m, mds, r, bl, "");
+    m->put();
+  }
+};
+
 /**
  * This function drops the mds_lock, so don't do anything with
  * MDSRank after calling it (we could have gone into shutdown): just
  * send your result back to the calling client and finish.
  */
-std::vector<entity_name_t> MDSRankDispatcher::evict_sessions(
-    const SessionFilter &filter)
+void MDSRankDispatcher::evict_sessions(const SessionFilter &filter, MCommand *m)
 {
   std::list<Session*> victims;
 
@@ -1802,24 +1818,16 @@ std::vector<entity_name_t> MDSRankDispatcher::evict_sessions(
 
   dout(20) << __func__ << " matched " << victims.size() << " sessions" << dendl;
 
-  std::vector<entity_name_t> result;
-
   if (victims.empty()) {
-    return result;
+    return;
   }
 
-  C_SaferCond on_safe;
-  C_GatherBuilder gather(g_ceph_context, &on_safe);
+  C_GatherBuilder gather(g_ceph_context,
+			 new C_MDS_Send_Command_Reply(this, m));
   for (const auto s : victims) {
     server->kill_session(s, gather.new_sub());
-    result.push_back(s->info.inst.name);
   }
   gather.activate();
-  mds_lock.Unlock();
-  on_safe.wait();
-  mds_lock.Lock();
-
-  return result;
 }
 
 void MDSRankDispatcher::dump_sessions(const SessionFilter &filter, Formatter *f) const
@@ -2545,14 +2553,17 @@ MDSRankDispatcher::MDSRankDispatcher(
 
 bool MDSRankDispatcher::handle_command(
   const cmdmap_t &cmdmap,
-  bufferlist const &inbl,
+  MCommand *m,
   int *r,
   std::stringstream *ds,
-  std::stringstream *ss)
+  std::stringstream *ss,
+  bool *need_reply)
 {
   assert(r != nullptr);
   assert(ds != nullptr);
   assert(ss != nullptr);
+
+  *need_reply = true;
 
   std::string prefix;
   cmd_getval(g_ceph_context, cmdmap, "prefix", prefix);
@@ -2582,8 +2593,9 @@ bool MDSRankDispatcher::handle_command(
       return true;
     }
 
-    evict_sessions(filter);
+    evict_sessions(filter, m);
 
+    *need_reply = false;
     return true;
   } else if (prefix == "damage ls") {
     Formatter *f = new JSONFormatter();
