@@ -6818,6 +6818,28 @@ int Client::utime(const char *relpath, struct utimbuf *buf)
   return _setattr(in, &attr, CEPH_SETATTR_MTIME|CEPH_SETATTR_ATIME);
 }
 
+int Client::futime(int fd, struct utimbuf *buf)
+{
+  Mutex::Locker lock(client_lock);
+  tout(cct) << "futime" << std::endl;
+  tout(cct) << fd << std::endl;
+  tout(cct) << buf->modtime << std::endl;
+  tout(cct) << buf->actime << std::endl;
+  Fh *f = get_filehandle(fd);
+  if (!f)
+    return -EBADF;
+
+  ldout(cct, 10) << "updating utime of fh " << f
+                 << "with fd = "  << fd
+                 << dendl;
+  struct stat attr;
+  stat_set_mtime_sec(&attr, buf->modtime);
+  stat_set_mtime_nsec(&attr, 0);
+  stat_set_atime_sec(&attr, buf->actime);
+  stat_set_atime_nsec(&attr, 0);
+  return _setattr(f->inode, &attr, CEPH_SETATTR_MTIME|CEPH_SETATTR_ATIME);
+}
+
 int Client::lutime(const char *relpath, struct utimbuf *buf)
 {
   Mutex::Locker lock(client_lock);
@@ -8794,7 +8816,7 @@ int Client::_fsync(Fh *f, bool syncdataonly)
 int Client::fstat(int fd, struct stat *stbuf, int mask)
 {
   Mutex::Locker lock(client_lock);
-  tout(cct) << "fstat mask " << hex << mask << std::endl;
+  tout(cct) << "fstat mask " << hex << mask << dec << std::endl;
   tout(cct) << fd << std::endl;
 
   Fh *f = get_filehandle(fd);

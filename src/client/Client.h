@@ -990,6 +990,7 @@ public:
   int fchown(int fd, int uid, int gid);
   int lchown(const char *path, int uid, int gid);
   int utime(const char *path, struct utimbuf *buf);
+  int futime(int fd, struct utimbuf *buf);
   int lutime(const char *path, struct utimbuf *buf);
   int flock(int fd, int operation, uint64_t owner);
   int truncate(const char *path, loff_t size);
