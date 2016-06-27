@@ -560,13 +560,13 @@ protected:
   compact_map<int32_t, int32_t>      mds_caps_wanted;     // [auth] mds -> caps wanted
   int                   replica_caps_wanted; // [replica] what i've requested from auth
 
-  compact_map<int, std::set<client_t> > client_snap_caps;     // [auth] [snap] dirty metadata we still need from the head
 public:
+  compact_map<int, std::set<client_t> > client_snap_caps;     // [auth] [snap] dirty metadata we still need from the head
   compact_map<snapid_t, std::set<client_t> > client_need_snapflush;
 
   void add_need_snapflush(CInode *snapin, snapid_t snapid, client_t client);
   void remove_need_snapflush(CInode *snapin, snapid_t snapid, client_t client);
-  void split_need_snapflush(CInode *cowin, CInode *in);
+  bool split_need_snapflush(CInode *cowin, CInode *in);
 
 protected:
 
@@ -987,7 +987,7 @@ public:
   void remove_client_cap(client_t client);
   void move_to_realm(SnapRealm *realm);
 
-  Capability *reconnect_cap(client_t client, ceph_mds_cap_reconnect& icr, Session *session);
+  Capability *reconnect_cap(client_t client, cap_reconnect_t& icr, Session *session);
   void clear_client_caps_after_export();
   void export_client_caps(std::map<client_t,Capability::Export>& cl);
 
