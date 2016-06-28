@@ -73,10 +73,6 @@ endif # WITH_FUSE
 
 
 if WITH_CEPHFS
-cephfs_SOURCES = cephfs.cc
-cephfs_LDADD = $(LIBCOMMON)
-bin_PROGRAMS += cephfs
-
 python_PYTHON += pybind/ceph_volume_client.py
 
 # libcephfs (this should go somewhere else in the future)
