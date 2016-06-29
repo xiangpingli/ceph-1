@@ -29,9 +29,20 @@ libosd_a_SOURCES = \
         dmclock/support/src/run_every.cc \
 	objclass/class_api.cc
 
-libosd_a_CXXFLAGS = ${AM_CXXFLAGS} -Idmclock/src -Idmclock/support/src
+libosd_a_CXXFLAGS = ${AM_CXXFLAGS} -Idmclock/src -Idmclock/support/src -Igmock/gtest/include
 libosd_a_LIBADD =
 noinst_LIBRARIES += libosd.a
+noinst_HEADERS += \
+	osd/mClockOpClassAdapter.h \
+	osd/PGQueueable.h \
+	common/mClockPriorityQueue.h \
+	dmclock/src/dmclock_server.h \
+	dmclock/src/dmclock_recs.h \
+	dmclock/src/dmclock_util.h \
+	dmclock/src/dmclock_client.h \
+	dmclock/support/src/run_every.h \
+	dmclock/support/src/indirect_intrusive_heap.h \
+	gmock/gtest/include/gtest/gtest_prod.h
 
 noinst_HEADERS += \
 	osd/ClassHandler.h \

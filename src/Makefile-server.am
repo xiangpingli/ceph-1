@@ -46,6 +46,7 @@ ceph_osd_LDADD = \
 	$(LIBOSDC) $(LIBOSD) $(LIBOSD_TYPES) $(LIBOS_TYPES) \
 	$(LIBOS) \
 	$(CEPH_GLOBAL) $(LIBCOMMON)
+ceph_osd_CXXFLAGS = ${AM_CXXFLAGS} -Idmclock/src -Idmclock/support/src -Igmock/gtest/include
 if WITH_LTTNG
 ceph_osd_LDADD += $(LIBOSD_TP)
 endif

@@ -20,6 +20,7 @@ libmon_a_SOURCES = \
 	mon/DataHealthService.cc \
 	mon/ConfigKeyService.cc
 libmon_a_LIBADD =
+libmon_a_CXXFLAGS = ${AM_CXXFLAGS} -Idmclock/src -Idmclock/support/src -Igmock/gtest/include
 noinst_LIBRARIES += libmon.a
 
 noinst_HEADERS += \

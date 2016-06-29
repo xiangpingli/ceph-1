@@ -20,6 +20,8 @@ if WITH_OSD
 
 ceph_objectstore_tool_SOURCES = tools/ceph_objectstore_tool.cc tools/RadosDump.cc
 ceph_objectstore_tool_LDADD = $(LIBOSD) $(LIBOS) $(CEPH_GLOBAL) $(BOOST_PROGRAM_OPTIONS_LIBS)
+# ceph_objectstore_tool_CXXFLAGS = ${AM_CXXFLAGS} -I../dmclock/src -I../dmclock/support/src -I../gmock/gtest/include
+ceph_objectstore_tool_CXXFLAGS = ${AM_CXXFLAGS} -Idmclock/src -Idmclock/support/src -Igmock/gtest/include
 if LINUX
 ceph_objectstore_tool_LDADD += -ldl
 endif # LINUX

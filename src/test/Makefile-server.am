@@ -14,6 +14,7 @@ bin_DEBUGPROGRAMS += ceph_test_trans
 
 ceph_test_mon_workloadgen_SOURCES = test/mon/test_mon_workloadgen.cc
 ceph_test_mon_workloadgen_LDADD = $(LIBOS) $(LIBOSDC) $(CEPH_GLOBAL)
+ceph_test_mon_workloadgen_CXXFLAGS = ${AM_CXXFLAGS} -Idmclock/src -Idmclock/support/src -Igmock/gtest/include
 bin_DEBUGPROGRAMS += ceph_test_mon_workloadgen
 
 ceph_test_mon_msg_SOURCES = test/mon/test-mon-msg.cc
@@ -192,7 +193,7 @@ unittest_ecbackend_LDADD = $(LIBOSD) $(UNITTEST_LDADD) $(CEPH_GLOBAL)
 check_TESTPROGRAMS += unittest_ecbackend
 
 unittest_osdscrub_SOURCES = test/osd/TestOSDScrub.cc
-unittest_osdscrub_CXXFLAGS = $(UNITTEST_CXXFLAGS)
+unittest_osdscrub_CXXFLAGS = $(UNITTEST_CXXFLAGS) -Idmclock/src -Idmclock/support/src -Igmock/gtest/include
 unittest_osdscrub_LDADD = $(LIBOSD) $(UNITTEST_LDADD) $(CEPH_GLOBAL)
 check_TESTPROGRAMS += unittest_osdscrub
 if LINUX
