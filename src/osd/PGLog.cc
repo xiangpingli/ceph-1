@@ -993,6 +993,8 @@ void PGLog::read_log(ObjectStore *store, coll_t pg_coll,
       if (i->version <= info.last_complete) break;
       if (cmp(i->soid, info.last_backfill, info.last_backfill_bitwise) > 0)
 	continue;
+      if (i->is_error())
+	continue;
       if (did.count(i->soid)) continue;
       did.insert(i->soid);
       
