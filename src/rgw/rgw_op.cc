@@ -1651,17 +1651,20 @@ void RGWSetBucketVersioning::pre_exec()
 
 void RGWSetBucketVersioning::execute()
 {
-  op_ret = get_params();
-  if (op_ret < 0)
-    return;
-
   if (!store->is_meta_master()) {
-    op_ret = forward_request_to_master(s, NULL, store, in_data, nullptr);
+    bufferlist in_data;
+    JSONParser jp;
+    op_ret = forward_request_to_master(s, NULL, store, in_data, &jp);
     if (op_ret < 0) {
       ldout(s->cct, 20) << __func__ << "forward_request_to_master returned ret=" << op_ret << dendl;
     }
     return;
   }
+  
+  op_ret = get_params();
+
+  if (op_ret < 0)
+    return;
 
   if (enable_versioning) {
     s->bucket_info.flags |= BUCKET_VERSIONED;
