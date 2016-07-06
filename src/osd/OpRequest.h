@@ -63,8 +63,6 @@ struct OpRequest : public TrackedOp {
   bool includes_pg_op();
   bool need_read_cap();
   bool need_write_cap();
-  bool need_class_read_cap();
-  bool need_class_write_cap();
   bool need_promote();
   bool need_skip_handle_cache();
   bool need_skip_promote();
@@ -78,24 +76,22 @@ struct OpRequest : public TrackedOp {
   void set_skip_handle_cache();
   void set_skip_promote();
 
-  // get name of object class that op may invoke
-  std::string class_name() const {
-    return class_name_;
+  struct ClassInfo {
+    ClassInfo(const std::string& name, bool read, bool write,
+        bool whitelisted) :
+      name(name), read(read), write(write), whitelisted(whitelisted)
+    {}
+    const std::string name;
+    const bool read, write, whitelisted;
+  };
+
+  void add_class(const std::string& name, bool read, bool write,
+      bool whitelisted) {
+    classes_.emplace_back(name, read, write, whitelisted);
   }
 
-  // set name of object class
-  void set_class_name(const std::string& name) {
-    class_name_ = name;
-  }
-
-  // is class name op may invoke on the whitelist?
-  bool class_whitelisted() const {
-    return class_whitelisted_;
-  }
-
-  // mark object class as whitelisted
-  void set_class_whitelisted() {
-    class_whitelisted_ = true;
+  std::vector<ClassInfo> classes() const {
+    return classes_;
   }
 
   void _dump(utime_t now, Formatter *f) const;
@@ -117,6 +113,8 @@ private:
   static const uint8_t flag_sub_op_sent = 1 << 4;
   static const uint8_t flag_commit_sent = 1 << 5;
 
+  std::vector<ClassInfo> classes_;
+
   OpRequest(Message *req, OpTracker *tracker);
 
 protected:
@@ -130,8 +128,6 @@ public:
   bool send_map_update;
   epoch_t sent_epoch;
   bool hitset_inserted;
-  bool class_whitelisted_;
-  std::string class_name_;
   Message *get_req() const { return request; }
   bool been_queued_for_pg() { return hit_flag_points & flag_queued_for_pg; }
   bool been_reached_pg() { return hit_flag_points & flag_reached_pg; }
@@ -197,5 +193,7 @@ private:
 };
 
 typedef OpRequest::Ref OpRequestRef;
+
+ostream& operator<<(ostream& out, const OpRequest::ClassInfo& i);
 
 #endif /* OPREQUEST_H_ */

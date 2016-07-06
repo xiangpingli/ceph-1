@@ -130,11 +130,11 @@ void OSDCap::set_allow_all()
 }
 
 bool OSDCap::is_capable(const string& pool_name, const string& ns, int64_t pool_auid,
-			const string& object, bool op_may_read,
-			bool op_may_write, bool op_may_class_read,
-			bool op_may_class_write, const string& op_class_name,
-			bool op_class_whitelisted) const
+			const string& object, bool op_may_read, bool op_may_write,
+			const std::vector<OpRequest::ClassInfo>& classes) const
 {
+  const size_t num_classes = classes.size();
+  std::vector<bool> class_allowed(num_classes, false);
   osd_rwxa_t allow = 0;
   for (vector<OSDCapGrant>::const_iterator p = grants.begin();
        p != grants.end(); ++p) {
@@ -143,19 +143,32 @@ bool OSDCap::is_capable(const string& pool_name, const string& ns, int64_t pool_
       if ((op_may_read && !(allow & OSD_CAP_R)) ||
           (op_may_write && !(allow & OSD_CAP_W)))
         continue;
-      if (op_may_class_read || op_may_class_write) {
-        // check 'allow class foo' and 'allow *'
-        if (p->spec.allow_all() ||
-            (op_class_name == p->spec.class_name &&
-             !p->spec.class_name.empty()))
+      if (num_classes) {
+        // check 'allow *'
+        if (p->spec.allow_all())
           return true;
-        if (!op_class_whitelisted)
-          continue;
-        // check 'allow x | class-{rw}': must be on whitelist
-        if ((op_may_class_read && !(allow & OSD_CAP_CLS_R)) ||
-            (op_may_class_write && !(allow & OSD_CAP_CLS_W))) {
-          continue;
+        // compare this grant to each class in the operation
+        for (size_t i = 0; i < num_classes; i++) {
+          // check 'allow class foo'
+          if (classes[i].name == p->spec.class_name &&
+              !p->spec.class_name.empty()) {
+            class_allowed[i] = true;
+            continue;
+          }
+          // check 'allow x | class-{rw}': must be on whitelist
+          if (!classes[i].whitelisted)
+            continue;
+          if ((classes[i].read && !(allow & OSD_CAP_CLS_R)) ||
+              (classes[i].write && !(allow & OSD_CAP_CLS_W))) {
+            continue;
+          }
+          class_allowed[i] = true;
         }
+        if (std::all_of(class_allowed.cbegin(), class_allowed.cend(),
+              [](bool v) { return v; }))
+          return true;
+        else
+          continue;
       }
       return true;
     }

@@ -1868,20 +1868,14 @@ bool PG::op_has_sufficient_caps(OpRequestRef& op)
                              pool.auid, key,
 			     op->need_read_cap(),
 			     op->need_write_cap(),
-			     op->need_class_read_cap(),
-			     op->need_class_write_cap(),
-			     op->class_name(),
-			     op->class_whitelisted());
+			     op->classes());
 
   dout(20) << "op_has_sufficient_caps pool=" << pool.id << " (" << pool.name
 		   << " " << req->get_object_locator().nspace
 	   << ") owner=" << pool.auid
 	   << " need_read_cap=" << op->need_read_cap()
 	   << " need_write_cap=" << op->need_write_cap()
-	   << " need_class_read_cap=" << op->need_class_read_cap()
-	   << " need_class_write_cap=" << op->need_class_write_cap()
-	   << " class_name=" << op->class_name()
-	   << " class_whitelisted=" << (op->class_whitelisted() ? "yes" : "no")
+	   << " classes=" << op->classes()
 	   << " -> " << (cap ? "yes" : "NO")
 	   << dendl;
   return cap;
