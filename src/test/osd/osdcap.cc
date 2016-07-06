@@ -762,3 +762,247 @@ TEST(OSDCap, AllowClassRWX) {
   ASSERT_TRUE(cap.is_capable("bar", "", 0, "foo", false, false, {{"bar", false, true, true}}));
   ASSERT_TRUE(cap.is_capable("bar", "", 0, "foo", false, false, {{"bar", true, true, true}}));
 }
+
+TEST(OSDCap, AllowClassMulti) {
+  OSDCap cap;
+  ASSERT_TRUE(cap.parse("allow class foo", NULL));
+
+  // can call any method on foo, but not bar, so the entire op is rejected
+  // bar with whitelist is rejected because it still needs rwx/class-read,write
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, true, true}, {"bar", true, true, true}}));
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, true, true}, {"bar", true, true, false}}));
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, true, true}, {"bar", true, false, true}}));
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, true, true}, {"bar", true, false, false}}));
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, true, true}, {"bar", false, true, true}}));
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, true, true}, {"bar", false, true, false}}));
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, true, true}, {"bar", false, false, false}}));
+
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, true, false}, {"bar", true, true, true}}));
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, true, false}, {"bar", true, true, false}}));
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, true, false}, {"bar", true, false, true}}));
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, true, false}, {"bar", true, false, false}}));
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, true, false}, {"bar", false, true, true}}));
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, true, false}, {"bar", false, true, false}}));
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, true, false}, {"bar", false, false, false}}));
+
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, false, true}, {"bar", true, true, true}}));
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, false, true}, {"bar", true, true, false}}));
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, false, true}, {"bar", true, false, true}}));
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, false, true}, {"bar", true, false, false}}));
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, false, true}, {"bar", false, true, true}}));
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, false, true}, {"bar", false, true, false}}));
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, false, true}, {"bar", false, false, false}}));
+
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, false, false}, {"bar", true, true, true}}));
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, false, false}, {"bar", true, true, false}}));
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, false, false}, {"bar", true, false, true}}));
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, false, false}, {"bar", true, false, false}}));
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, false, false}, {"bar", false, true, true}}));
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, false, false}, {"bar", false, true, false}}));
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, false, false}, {"bar", false, false, false}}));
+
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, true, true}, {"bar", true, true, true}}));
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, true, true}, {"bar", true, true, false}}));
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, true, true}, {"bar", true, false, true}}));
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, true, true}, {"bar", true, false, false}}));
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, true, true}, {"bar", false, true, true}}));
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, true, true}, {"bar", false, true, false}}));
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, true, true}, {"bar", false, false, false}}));
+
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, true, false}, {"bar", true, true, true}}));
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, true, false}, {"bar", true, true, false}}));
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, true, false}, {"bar", true, false, true}}));
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, true, false}, {"bar", true, false, false}}));
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, true, false}, {"bar", false, true, true}}));
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, true, false}, {"bar", false, true, false}}));
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, true, false}, {"bar", false, false, false}}));
+
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, false, true}, {"bar", true, true, true}}));
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, false, true}, {"bar", true, true, false}}));
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, false, true}, {"bar", true, false, true}}));
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, false, true}, {"bar", true, false, false}}));
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, false, true}, {"bar", false, true, true}}));
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, false, true}, {"bar", false, true, false}}));
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, false, true}, {"bar", false, false, false}}));
+
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, false, false}, {"bar", true, true, true}}));
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, false, false}, {"bar", true, true, false}}));
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, false, false}, {"bar", true, false, true}}));
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, false, false}, {"bar", true, false, false}}));
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, false, false}, {"bar", false, true, true}}));
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, false, false}, {"bar", false, true, false}}));
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, false, false}, {"bar", false, false, false}}));
+
+  // these are OK because 'bar' is on the whitelist BUT the calls don't read or write
+  ASSERT_TRUE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, true, true}, {"bar", false, false, true}}));
+  ASSERT_TRUE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, true, false}, {"bar", false, false, true}}));
+  ASSERT_TRUE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, false, true}, {"bar", false, false, true}}));
+  ASSERT_TRUE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, false, false}, {"bar", false, false, true}}));
+  ASSERT_TRUE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, true, true}, {"bar", false, false, true}}));
+  ASSERT_TRUE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, true, false}, {"bar", false, false, true}}));
+  ASSERT_TRUE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, false, true}, {"bar", false, false, true}}));
+  ASSERT_TRUE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, false, false}, {"bar", false, false, true}}));
+
+  // can call any method on foo or bar regardless of whitelist status
+  OSDCap cap2;
+  ASSERT_TRUE(cap2.parse("allow class foo, allow class bar", NULL));
+
+  ASSERT_TRUE(cap2.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, true, true}, {"bar", true, true, true}}));
+  ASSERT_TRUE(cap2.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, true, true}, {"bar", true, true, false}}));
+  ASSERT_TRUE(cap2.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, true, true}, {"bar", true, false, true}}));
+  ASSERT_TRUE(cap2.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, true, true}, {"bar", true, false, false}}));
+  ASSERT_TRUE(cap2.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, true, true}, {"bar", false, true, true}}));
+  ASSERT_TRUE(cap2.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, true, true}, {"bar", false, true, false}}));
+  ASSERT_TRUE(cap2.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, true, true}, {"bar", false, false, true}}));
+  ASSERT_TRUE(cap2.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, true, true}, {"bar", false, false, false}}));
+
+  ASSERT_TRUE(cap2.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, true, false}, {"bar", true, true, true}}));
+  ASSERT_TRUE(cap2.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, true, false}, {"bar", true, true, false}}));
+  ASSERT_TRUE(cap2.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, true, false}, {"bar", true, false, true}}));
+  ASSERT_TRUE(cap2.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, true, false}, {"bar", true, false, false}}));
+  ASSERT_TRUE(cap2.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, true, false}, {"bar", false, true, true}}));
+  ASSERT_TRUE(cap2.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, true, false}, {"bar", false, true, false}}));
+  ASSERT_TRUE(cap2.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, true, false}, {"bar", false, false, true}}));
+  ASSERT_TRUE(cap2.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, true, false}, {"bar", false, false, false}}));
+
+  ASSERT_TRUE(cap2.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, false, true}, {"bar", true, true, true}}));
+  ASSERT_TRUE(cap2.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, false, true}, {"bar", true, true, false}}));
+  ASSERT_TRUE(cap2.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, false, true}, {"bar", true, false, true}}));
+  ASSERT_TRUE(cap2.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, false, true}, {"bar", true, false, false}}));
+  ASSERT_TRUE(cap2.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, false, true}, {"bar", false, true, true}}));
+  ASSERT_TRUE(cap2.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, false, true}, {"bar", false, true, false}}));
+  ASSERT_TRUE(cap2.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, false, true}, {"bar", false, false, true}}));
+  ASSERT_TRUE(cap2.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, false, true}, {"bar", false, false, false}}));
+
+  ASSERT_TRUE(cap2.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, false, false}, {"bar", true, true, true}}));
+  ASSERT_TRUE(cap2.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, false, false}, {"bar", true, true, false}}));
+  ASSERT_TRUE(cap2.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, false, false}, {"bar", true, false, true}}));
+  ASSERT_TRUE(cap2.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, false, false}, {"bar", true, false, false}}));
+  ASSERT_TRUE(cap2.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, false, false}, {"bar", false, true, true}}));
+  ASSERT_TRUE(cap2.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, false, false}, {"bar", false, true, false}}));
+  ASSERT_TRUE(cap2.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, false, false}, {"bar", false, false, true}}));
+  ASSERT_TRUE(cap2.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, false, false}, {"bar", false, false, false}}));
+
+  ASSERT_TRUE(cap2.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, true, true}, {"bar", true, true, true}}));
+  ASSERT_TRUE(cap2.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, true, true}, {"bar", true, true, false}}));
+  ASSERT_TRUE(cap2.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, true, true}, {"bar", true, false, true}}));
+  ASSERT_TRUE(cap2.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, true, true}, {"bar", true, false, false}}));
+  ASSERT_TRUE(cap2.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, true, true}, {"bar", false, true, true}}));
+  ASSERT_TRUE(cap2.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, true, true}, {"bar", false, true, false}}));
+  ASSERT_TRUE(cap2.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, true, true}, {"bar", false, false, true}}));
+  ASSERT_TRUE(cap2.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, true, true}, {"bar", false, false, false}}));
+
+  ASSERT_TRUE(cap2.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, true, false}, {"bar", true, true, true}}));
+  ASSERT_TRUE(cap2.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, true, false}, {"bar", true, true, false}}));
+  ASSERT_TRUE(cap2.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, true, false}, {"bar", true, false, true}}));
+  ASSERT_TRUE(cap2.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, true, false}, {"bar", true, false, false}}));
+  ASSERT_TRUE(cap2.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, true, false}, {"bar", false, true, true}}));
+  ASSERT_TRUE(cap2.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, true, false}, {"bar", false, true, false}}));
+  ASSERT_TRUE(cap2.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, true, false}, {"bar", false, false, true}}));
+  ASSERT_TRUE(cap2.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, true, false}, {"bar", false, false, false}}));
+
+  ASSERT_TRUE(cap2.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, false, true}, {"bar", true, true, true}}));
+  ASSERT_TRUE(cap2.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, false, true}, {"bar", true, true, false}}));
+  ASSERT_TRUE(cap2.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, false, true}, {"bar", true, false, true}}));
+  ASSERT_TRUE(cap2.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, false, true}, {"bar", true, false, false}}));
+  ASSERT_TRUE(cap2.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, false, true}, {"bar", false, true, true}}));
+  ASSERT_TRUE(cap2.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, false, true}, {"bar", false, true, false}}));
+  ASSERT_TRUE(cap2.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, false, true}, {"bar", false, false, true}}));
+  ASSERT_TRUE(cap2.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, false, true}, {"bar", false, false, false}}));
+
+  ASSERT_TRUE(cap2.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, false, false}, {"bar", true, true, true}}));
+  ASSERT_TRUE(cap2.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, false, false}, {"bar", true, true, false}}));
+  ASSERT_TRUE(cap2.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, false, false}, {"bar", true, false, true}}));
+  ASSERT_TRUE(cap2.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, false, false}, {"bar", true, false, false}}));
+  ASSERT_TRUE(cap2.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, false, false}, {"bar", false, true, true}}));
+  ASSERT_TRUE(cap2.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, false, false}, {"bar", false, true, false}}));
+  ASSERT_TRUE(cap2.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, false, false}, {"bar", false, false, true}}));
+  ASSERT_TRUE(cap2.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, false, false}, {"bar", false, false, false}}));
+}
+
+TEST(OSDCap, AllowClassMultiRWX) {
+  OSDCap cap;
+  ASSERT_TRUE(cap.parse("allow rwx, allow class foo", NULL));
+
+  // can call anything on foo, but only whitelisted methods on bar
+  ASSERT_TRUE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, true, true}, {"bar", true, true, true}}));
+  ASSERT_TRUE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, true, true}, {"bar", true, false, true}}));
+  ASSERT_TRUE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, true, true}, {"bar", false, true, true}}));
+  ASSERT_TRUE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, true, true}, {"bar", false, false, true}}));
+
+  // fails because bar not whitelisted
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, true, true}, {"bar", true, true, false}}));
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, true, true}, {"bar", true, false, false}}));
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, true, true}, {"bar", false, true, false}}));
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, true, true}, {"bar", false, false, false}}));
+
+  ASSERT_TRUE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, true, false}, {"bar", true, true, true}}));
+  ASSERT_TRUE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, true, false}, {"bar", true, false, true}}));
+  ASSERT_TRUE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, true, false}, {"bar", false, true, true}}));
+  ASSERT_TRUE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, true, false}, {"bar", false, false, true}}));
+
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, true, false}, {"bar", true, true, false}}));
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, true, false}, {"bar", true, false, false}}));
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, true, false}, {"bar", false, true, false}}));
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, true, false}, {"bar", false, false, false}}));
+
+  ASSERT_TRUE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, false, true}, {"bar", true, true, true}}));
+  ASSERT_TRUE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, false, true}, {"bar", true, false, true}}));
+  ASSERT_TRUE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, false, true}, {"bar", false, true, true}}));
+  ASSERT_TRUE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, false, true}, {"bar", false, false, true}}));
+
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, false, true}, {"bar", true, true, false}}));
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, false, true}, {"bar", true, false, false}}));
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, false, true}, {"bar", false, true, false}}));
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, false, true}, {"bar", false, false, false}}));
+
+  ASSERT_TRUE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, false, false}, {"bar", true, true, true}}));
+  ASSERT_TRUE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, false, false}, {"bar", true, false, true}}));
+  ASSERT_TRUE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, false, false}, {"bar", false, true, true}}));
+  ASSERT_TRUE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, false, false}, {"bar", false, false, true}}));
+
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, false, false}, {"bar", true, true, false}}));
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, false, false}, {"bar", true, false, false}}));
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, false, false}, {"bar", false, true, false}}));
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", true, false, false}, {"bar", false, false, false}}));
+
+  ASSERT_TRUE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, true, true}, {"bar", true, true, true}}));
+  ASSERT_TRUE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, true, true}, {"bar", true, false, true}}));
+  ASSERT_TRUE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, true, true}, {"bar", false, true, true}}));
+  ASSERT_TRUE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, true, true}, {"bar", false, false, true}}));
+
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, true, true}, {"bar", true, true, false}}));
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, true, true}, {"bar", true, false, false}}));
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, true, true}, {"bar", false, true, false}}));
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, true, true}, {"bar", false, false, false}}));
+
+  ASSERT_TRUE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, true, false}, {"bar", true, true, true}}));
+  ASSERT_TRUE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, true, false}, {"bar", true, false, true}}));
+  ASSERT_TRUE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, true, false}, {"bar", false, true, true}}));
+  ASSERT_TRUE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, true, false}, {"bar", false, false, true}}));
+
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, true, false}, {"bar", true, true, false}}));
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, true, false}, {"bar", true, false, false}}));
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, true, false}, {"bar", false, true, false}}));
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, true, false}, {"bar", false, false, false}}));
+
+  ASSERT_TRUE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, false, true}, {"bar", true, true, true}}));
+  ASSERT_TRUE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, false, true}, {"bar", true, false, true}}));
+  ASSERT_TRUE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, false, true}, {"bar", false, true, true}}));
+  ASSERT_TRUE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, false, true}, {"bar", false, false, true}}));
+
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, false, true}, {"bar", true, true, false}}));
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, false, true}, {"bar", true, false, false}}));
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, false, true}, {"bar", false, true, false}}));
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, false, true}, {"bar", false, false, false}}));
+
+  ASSERT_TRUE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, false, false}, {"bar", true, true, true}}));
+  ASSERT_TRUE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, false, false}, {"bar", true, false, true}}));
+  ASSERT_TRUE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, false, false}, {"bar", false, true, true}}));
+  ASSERT_TRUE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, false, false}, {"bar", false, false, true}}));
+
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, false, false}, {"bar", true, true, false}}));
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, false, false}, {"bar", true, false, false}}));
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, false, false}, {"bar", false, true, false}}));
+  ASSERT_FALSE(cap.is_capable("bar", "", 0, "foo", false, false, {{"foo", false, false, false}, {"bar", false, false, false}}));
+}
