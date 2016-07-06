@@ -305,6 +305,21 @@ void rgw_bucket_instance_key_to_oid(string& key)
   }
 }
 
+// convert bucket instance oids back to the tenant/ format for metadata keys.
+// it's safe to parse 'tenant:' only for oids, because they won't contain the
+// optional :shard at the end
+void rgw_bucket_instance_oid_to_key(string& oid)
+{
+  // find first : (could be tenant:bucket or bucket:instance)
+  auto c = oid.find(':');
+  if (c != string::npos) {
+    // if we find another :, the first one was for tenant
+    if (oid.find(':', c + 1) != string::npos) {
+      oid[c] = '/';
+    }
+  }
+}
+
 int rgw_bucket_parse_bucket_instance(const string& bucket_instance, string *target_bucket_instance, int *shard_id)
 {
   ssize_t pos = bucket_instance.rfind(':');
@@ -2171,14 +2186,16 @@ public:
       return 0;
     }
 
-    int prefix_size = sizeof(RGW_BUCKET_INSTANCE_MD_PREFIX) - 1;
+    constexpr int prefix_size = sizeof(RGW_BUCKET_INSTANCE_MD_PREFIX) - 1;
     // now filter in the relevant entries
     list<string>::iterator iter;
     for (iter = unfiltered_keys.begin(); iter != unfiltered_keys.end(); ++iter) {
       string& k = *iter;
 
       if (k.compare(0, prefix_size, RGW_BUCKET_INSTANCE_MD_PREFIX) == 0) {
-        keys.push_back(k.substr(prefix_size));
+        auto oid = k.substr(prefix_size);
+        rgw_bucket_instance_oid_to_key(oid);
+        keys.emplace_back(std::move(oid));
       }
     }
 
