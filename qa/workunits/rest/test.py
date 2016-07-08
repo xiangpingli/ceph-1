@@ -1,6 +1,7 @@
 #!/usr/bin/python
 
-import exceptions
+from __future__ import print_function
+
 import json
 import os
 import requests
@@ -12,12 +13,14 @@ import xml.etree.ElementTree
 
 BASEURL = os.environ.get('BASEURL', 'http://localhost:5000/api/v0.1')
 
+
 def fail(r, msg):
-    print >> sys.stderr, 'FAILURE: url ', r.url
-    print >> sys.stderr, msg
-    print >> sys.stderr, 'Response content: ', r.content
-    print >> sys.stderr, 'Headers: ', r.headers
+    print('FAILURE: url ', r.url, file=sys.stderr)
+    print(msg, file=sys.stderr)
+    print('Response content: ', r.content, file=sys.stderr)
+    print('Headers: ', r.headers, file=sys.stderr)
     sys.exit(1)
+
 
 def expect(url, method, respcode, contenttype, extra_hdrs=None, data=None):
     failmsg, r = expect_nofail(url, method, respcode, contenttype, extra_hdrs,
@@ -26,6 +29,7 @@ def expect(url, method, respcode, contenttype, extra_hdrs=None, data=None):
         fail(r, failmsg)
     return r
 
+
 def expect_nofail(url, method, respcode, contenttype, extra_hdrs=None,
                  data=None):
 
@@ -33,7 +37,7 @@ def expect_nofail(url, method, respcode, contenttype, extra_hdrs=None,
     f = fdict[method.lower()]
     r = f(BASEURL + '/' + url, headers=extra_hdrs, data=data)
 
-    print '{0} {1}: {2} {3}'.format(method, url, contenttype, r.status_code)
+    print('{0} {1}: {2} {3}'.format(method, url, contenttype, r.status_code))
 
     if r.status_code != respcode:
         return 'expected {0}, got {1}'.format(respcode, r.status_code), r
@@ -53,7 +57,7 @@ def expect_nofail(url, method, respcode, contenttype, extra_hdrs=None,
             try:
                 # older requests.py doesn't create r.myjson; create it myself
                 r.myjson = json.loads(r.content)
-                assert(r.myjson != None)
+                assert(r.myjson is not None)
             except Exception as e:
                 return 'Invalid JSON returned: "{0}"'.format(str(e)), r
 
@@ -243,7 +247,7 @@ if __name__ == '__main__':
         if r.myjson['output']['osds'][0]['up'] == 1:
             break
         else:
-            print >> sys.stderr, "waiting for osd.0 to come back up"
+            print("waiting for osd.0 to come back up", file=sys.stderr)
             time.sleep(10)
 
     r = expect('osd/dump', 'GET', 200, 'json', JSONHDR)
@@ -289,7 +293,6 @@ if __name__ == '__main__':
     assert(isinstance(r.myjson['output'], list))
     r = expect('osd/ls', 'GET', 200, 'xml', XMLHDR)
     assert(r.tree.find('output/osds/osd') is not None)
-
 
     expect('osd/pause', 'PUT', 200, '')
     r = expect('osd/dump', 'GET', 200, 'json', JSONHDR)
@@ -414,4 +417,4 @@ if __name__ == '__main__':
     r = expect('osd/pool/get.json?pool=rbd&var=crush_ruleset', 'GET', 200, 'json')
     assert(r.myjson['output']['crush_ruleset'] == 0)
 
-    print 'OK'
+    print('OK')
