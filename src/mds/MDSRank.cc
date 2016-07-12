@@ -17,7 +17,10 @@
 
 #include "messages/MClientRequestForward.h"
 #include "messages/MMDSMap.h"
+#include "messages/MCommand.h"
+#include "messages/MCommandReply.h"
 
+#include "MDSDaemon.h"
 #include "MDSMap.h"
 #include "SnapClient.h"
 #include "SnapServer.h"
@@ -238,7 +241,11 @@ void MDSRankDispatcher::shutdown()
   progress_thread.shutdown();
 
   // shut down messenger
+  // release mds_lock first because messenger thread might call 
+  // MDSDaemon::ms_handle_reset which will try to hold mds_lock
+  mds_lock.Unlock();
   messenger->shutdown();
+  mds_lock.Lock();
 
   // Workaround unclean shutdown: HeartbeatMap will assert if
   // worker is not removed (as we do in ~MDS), but ~MDS is not
@@ -1694,13 +1701,11 @@ bool MDSRankDispatcher::handle_asok_command(
       cond.wait();
     }
   } else if (command == "session ls") {
-    mds_lock.Lock();
+    Mutex::Locker l(mds_lock);
 
     heartbeat_reset();
 
     dump_sessions(SessionFilter(), f);
-
-    mds_lock.Unlock();
   } else if (command == "session evict") {
     std::string client_id;
     const bool got_arg = cmd_getval(g_ceph_context, cmdmap, "client_id", client_id);
@@ -1752,6 +1757,7 @@ bool MDSRankDispatcher::handle_asok_command(
     }
     command_export_dir(f, path, (mds_rank_t)rank);
   } else if (command == "dump cache") {
+    Mutex::Locker l(mds_lock);
     string path;
     if(!cmd_getval(g_ceph_context, cmdmap, "path", path)) {
       mdcache->dump_cache(f);
@@ -1759,17 +1765,13 @@ bool MDSRankDispatcher::handle_asok_command(
       mdcache->dump_cache(path);
     }
   } else if (command == "force_readonly") {
-    mds_lock.Lock();
-    mdcache->force_readonly();
-    mds_lock.Unlock();
-  } else if (command == "dirfrag split") {
     Mutex::Locker l(mds_lock);
+    mdcache->force_readonly();
+  } else if (command == "dirfrag split") {
     command_dirfrag_split(cmdmap, ss);
   } else if (command == "dirfrag merge") {
-    Mutex::Locker l(mds_lock);
     command_dirfrag_merge(cmdmap, ss);
   } else if (command == "dirfrag ls") {
-    Mutex::Locker l(mds_lock);
     command_dirfrag_ls(cmdmap, ss, f);
   } else {
     return false;
@@ -1778,15 +1780,32 @@ bool MDSRankDispatcher::handle_asok_command(
   return true;
 }
 
+class C_MDS_Send_Command_Reply : public MDSInternalContext
+{
+protected:
+  MCommand *m;
+public:
+  C_MDS_Send_Command_Reply(MDSRank *_mds, MCommand *_m) :
+    MDSInternalContext(_mds), m(_m) { m->get(); }
+  void send (int r) {
+    bufferlist bl;
+    MDSDaemon::send_command_reply(m, mds, r, bl, "");
+    m->put();
+  }
+  void finish (int r) {
+    send(r);
+  }
+};
+
 /**
  * This function drops the mds_lock, so don't do anything with
  * MDSRank after calling it (we could have gone into shutdown): just
  * send your result back to the calling client and finish.
  */
-std::vector<entity_name_t> MDSRankDispatcher::evict_sessions(
-    const SessionFilter &filter)
+void MDSRankDispatcher::evict_sessions(const SessionFilter &filter, MCommand *m)
 {
   std::list<Session*> victims;
+  C_MDS_Send_Command_Reply *reply = new C_MDS_Send_Command_Reply(this, m);
 
   const auto sessions = sessionmap.get_sessions();
   for (const auto p : sessions)  {
@@ -1803,24 +1822,17 @@ std::vector<entity_name_t> MDSRankDispatcher::evict_sessions(
 
   dout(20) << __func__ << " matched " << victims.size() << " sessions" << dendl;
 
-  std::vector<entity_name_t> result;
-
   if (victims.empty()) {
-    return result;
+    reply->send(0);
+    delete reply;
+    return;
   }
 
-  C_SaferCond on_safe;
-  C_GatherBuilder gather(g_ceph_context, &on_safe);
+  C_GatherBuilder gather(g_ceph_context, reply);
   for (const auto s : victims) {
     server->kill_session(s, gather.new_sub());
-    result.push_back(s->info.inst.name);
   }
   gather.activate();
-  mds_lock.Unlock();
-  on_safe.wait();
-  mds_lock.Lock();
-
-  return result;
 }
 
 void MDSRankDispatcher::dump_sessions(const SessionFilter &filter, Formatter *f) const
@@ -2048,6 +2060,7 @@ int MDSRank::_command_flush_journal(std::stringstream *ss)
 void MDSRank::command_get_subtrees(Formatter *f)
 {
   assert(f != NULL);
+  Mutex::Locker l(mds_lock);
 
   std::list<CDir*> subtrees;
   mdcache->list_subtrees(subtrees);
@@ -2085,6 +2098,7 @@ int MDSRank::_command_export_dir(
     const std::string &path,
     mds_rank_t target)
 {
+  Mutex::Locker l(mds_lock);
   filepath fp(path.c_str());
 
   if (target == whoami || !mdsmap->is_up(target) || !mdsmap->is_in(target)) {
@@ -2160,6 +2174,7 @@ bool MDSRank::command_dirfrag_split(
     cmdmap_t cmdmap,
     std::ostream &ss)
 {
+  Mutex::Locker l(mds_lock);
   if (!mdsmap->allows_dirfrags()) {
     ss << "dirfrags are disallowed by the mds map!";
     return false;
@@ -2190,6 +2205,7 @@ bool MDSRank::command_dirfrag_merge(
     cmdmap_t cmdmap,
     std::ostream &ss)
 {
+  Mutex::Locker l(mds_lock);
   std::string path;
   bool got = cmd_getval(g_ceph_context, cmdmap, "path", path);
   if (!got) {
@@ -2225,6 +2241,7 @@ bool MDSRank::command_dirfrag_ls(
     std::ostream &ss,
     Formatter *f)
 {
+  Mutex::Locker l(mds_lock);
   std::string path;
   bool got = cmd_getval(g_ceph_context, cmdmap, "path", path);
   if (!got) {
@@ -2541,14 +2558,17 @@ MDSRankDispatcher::MDSRankDispatcher(
 
 bool MDSRankDispatcher::handle_command(
   const cmdmap_t &cmdmap,
-  bufferlist const &inbl,
+  MCommand *m,
   int *r,
   std::stringstream *ds,
-  std::stringstream *ss)
+  std::stringstream *ss,
+  bool *need_reply)
 {
   assert(r != nullptr);
   assert(ds != nullptr);
   assert(ss != nullptr);
+
+  *need_reply = true;
 
   std::string prefix;
   cmd_getval(g_ceph_context, cmdmap, "prefix", prefix);
@@ -2578,8 +2598,9 @@ bool MDSRankDispatcher::handle_command(
       return true;
     }
 
-    evict_sessions(filter);
+    evict_sessions(filter, m);
 
+    *need_reply = false;
     return true;
   } else if (prefix == "damage ls") {
     Formatter *f = new JSONFormatter();

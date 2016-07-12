@@ -2270,7 +2270,8 @@ bool OSDMonitor::prepare_alive(MonOpRequestRef op)
 
   dout(7) << "prepare_alive want up_thru " << m->want << " have " << m->version
 	  << " from " << m->get_orig_source_inst() << dendl;
-  pending_inc.new_up_thru[from] = m->version;  // set to the latest map the OSD has
+
+  update_up_thru(from, m->version); // set to the latest map the OSD has
   wait_for_finished_proposal(op, new C_ReplyMap(this, op, m->version));
   return true;
 }
@@ -2333,6 +2334,21 @@ bool OSDMonitor::preprocess_pgtemp(MonOpRequestRef op)
       continue;
     }
 
+    int acting_primary = -1;
+    osdmap.pg_to_up_acting_osds(
+      p->first, nullptr, nullptr, nullptr, &acting_primary);
+    if (acting_primary != from) {
+      /* If the source isn't the primary based on the current osdmap, we know
+       * that the interval changed and that we can discard this message.
+       * Indeed, we must do so to avoid 16127 since we can't otherwise determine
+       * which of two pg temp mappings on the same pg is more recent.
+       */
+      dout(10) << __func__ << " ignore " << p->first << " -> " << p->second
+	       << ": primary has changed" << dendl;
+      ignore_cnt++;
+      continue;
+    }
+
     // removal?
     if (p->second.empty() && (osdmap.pg_temp->count(p->first) ||
 			      osdmap.primary_temp->count(p->first)))
@@ -2356,6 +2372,19 @@ bool OSDMonitor::preprocess_pgtemp(MonOpRequestRef op)
 
  ignore:
   return true;
+}
+
+void OSDMonitor::update_up_thru(int from, epoch_t up_thru)
+{
+  epoch_t old_up_thru = osdmap.get_up_thru(from);
+  auto ut = pending_inc.new_up_thru.find(from);
+  if (ut != pending_inc.new_up_thru.end()) {
+    old_up_thru = ut->second;
+  }
+  if (up_thru > old_up_thru) {
+    // set up_thru too, so the osd doesn't have to ask again
+    pending_inc.new_up_thru[from] = up_thru;
+  }
 }
 
 bool OSDMonitor::prepare_pgtemp(MonOpRequestRef op)
@@ -2385,7 +2414,10 @@ bool OSDMonitor::prepare_pgtemp(MonOpRequestRef op)
 	pending_inc.new_primary_temp.count(p->first))
       pending_inc.new_primary_temp[p->first] = -1;
   }
-  pending_inc.new_up_thru[from] = m->map_epoch;   // set up_thru too, so the osd doesn't have to ask again
+
+  // set up_thru too, so the osd doesn't have to ask again
+  update_up_thru(from, m->map_epoch);
+
   wait_for_finished_proposal(op, new C_ReplyMap(this, op, m->map_epoch));
   return true;
 }
@@ -4184,13 +4216,12 @@ bool OSDMonitor::update_pools_status()
         mon->clog->warn() << "pool '" << pool_name << "' is full"
                          << " (reached quota's max_bytes: "
                          << si_t(pool.quota_max_bytes) << ")";
-      } else if (pool.quota_max_objects > 0 &&
+      }
+      if (pool.quota_max_objects > 0 &&
 		 (uint64_t)sum.num_objects >= pool.quota_max_objects) {
         mon->clog->warn() << "pool '" << pool_name << "' is full"
                          << " (reached quota's max_objects: "
                          << pool.quota_max_objects << ")";
-      } else {
-        assert(0 == "we shouldn't reach this");
       }
       update_pool_flags(it->first, pool.get_flags() | pg_pool_t::FLAG_FULL);
       ret = true;
@@ -4840,7 +4871,7 @@ bool OSDMonitor::prepare_set_flag(MonOpRequestRef op, int flag)
   if (pending_inc.new_flags < 0)
     pending_inc.new_flags = osdmap.get_flags();
   pending_inc.new_flags |= flag;
-  ss << "set " << OSDMap::get_flag_string(flag);
+  ss << OSDMap::get_flag_string(flag) << " is set";
   wait_for_finished_proposal(op, new Monitor::C_Command(mon, op, 0, ss.str(),
 						    get_last_committed() + 1));
   return true;
@@ -4853,7 +4884,7 @@ bool OSDMonitor::prepare_unset_flag(MonOpRequestRef op, int flag)
   if (pending_inc.new_flags < 0)
     pending_inc.new_flags = osdmap.get_flags();
   pending_inc.new_flags &= ~flag;
-  ss << "unset " << OSDMap::get_flag_string(flag);
+  ss << OSDMap::get_flag_string(flag) << " is unset";
   wait_for_finished_proposal(op, new Monitor::C_Command(mon, op, 0, ss.str(),
 						    get_last_committed() + 1));
   return true;

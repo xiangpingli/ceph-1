@@ -84,7 +84,7 @@ static ostream& _prefix(std::ostream *_dout, T *t)
 
 void PG::get(const char* tag)
 {
-  ref.inc();
+  ref++;
 #ifdef PG_DEBUG_REFS
   Mutex::Locker l(_ref_id_lock);
   if (!_tag_counts.count(tag)) {
@@ -106,14 +106,14 @@ void PG::put(const char* tag)
     }
   }
 #endif
-  if (ref.dec() == 0)
+  if (--ref== 0)
     delete this;
 }
 
 #ifdef PG_DEBUG_REFS
 uint64_t PG::get_with_id()
 {
-  ref.inc();
+  ref++;
   Mutex::Locker l(_ref_id_lock);
   uint64_t id = ++_ref_id;
   BackTrace bt(0);
@@ -133,7 +133,7 @@ void PG::put_with_id(uint64_t id)
     assert(_live_ids.count(id));
     _live_ids.erase(id);
   }
-  if (ref.dec() == 0)
+  if (--ref == 0)
     delete this;
 }
 
@@ -208,7 +208,6 @@ PG::PG(OSDService *o, OSDMapRef curmap,
   map_lock("PG::map_lock"),
   osdmap_ref(curmap), last_persisted_osdmap_ref(curmap), pool(_pool),
   _lock("PG::_lock"),
-  ref(0),
   #ifdef PG_DEBUG_REFS
   _ref_id_lock("PG::_ref_id_lock"), _ref_id(0),
   #endif
@@ -1332,26 +1331,7 @@ bool PG::choose_acting(pg_shard_t &auth_log_shard_id, bool *history_les_bound)
     return false;
   }
 
-  if ((up.size() &&
-      !all_info.find(up_primary)->second.is_incomplete() &&
-      all_info.find(up_primary)->second.last_update >=
-       auth_log_shard->second.log_tail) &&
-      auth_log_shard->second.is_incomplete()) {
-    map<pg_shard_t, pg_info_t> complete_infos;
-    for (map<pg_shard_t, pg_info_t>::const_iterator i = all_info.begin();
-	 i != all_info.end();
-	 ++i) {
-      if (!i->second.is_incomplete())
-	complete_infos.insert(*i);
-    }
-    map<pg_shard_t, pg_info_t>::const_iterator i = find_best_info(
-      complete_infos,
-      history_les_bound);
-    if (i != complete_infos.end()) {
-      auth_log_shard = all_info.find(i->first);
-    }
-  }
-
+  assert(!auth_log_shard->second.is_incomplete());
   auth_log_shard_id = auth_log_shard->first;
 
   // Determine if compatibility needed

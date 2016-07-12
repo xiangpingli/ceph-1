@@ -22,6 +22,7 @@ set_target_properties(rbd_test_mock PROPERTIES COMPILE_FLAGS
 # unittest_librbd
 # doesn't use add_ceph_test because it is called by run-rbd-unit-tests.sh
 set(unittest_librbd_srcs
+  test_ConsistencyGroups.cc 
   test_main.cc
   test_mock_fixture.cc 
   test_mock_ExclusiveLock.cc 
@@ -47,7 +48,7 @@ set(unittest_librbd_srcs
   operation/test_mock_SnapshotRollbackRequest.cc 
   operation/test_mock_SnapshotUnprotectRequest.cc
   )
-add_executable(unittest_librbd EXCLUDE_FROM_ALL
+add_executable(unittest_librbd
   ${unittest_librbd_srcs}
   ${CMAKE_SOURCE_DIR}/src/common/ContextCompletion.cc
   $<TARGET_OBJECTS:common_texttable_obj>
@@ -87,7 +88,6 @@ add_executable(ceph_test_librbd
   $<TARGET_OBJECTS:parse_secret_objs>
   )
 target_link_libraries(ceph_test_librbd
-  rados_test_stub
   librados
   rbd_test
   rbd_api
@@ -143,3 +143,8 @@ target_link_libraries(ceph_test_librbd_fsx
   keyutils
   )
 
+install(TARGETS
+  ceph_test_librbd
+  ceph_test_librbd_api
+  ceph_test_librbd_fsx
+  DESTINATION ${CMAKE_INSTALL_BINDIR})

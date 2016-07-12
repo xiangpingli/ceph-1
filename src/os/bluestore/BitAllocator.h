@@ -9,7 +9,6 @@
 #define CEPH_OS_BLUESTORE_BITALLOCATOR_H
 
 #define debug_assert assert
-#define BITMAP_SPAN_SIZE (1024)
 
 #include <assert.h>
 #include <stdint.h>
@@ -187,14 +186,12 @@ protected:
   bmap_area_type_t m_type;
 
 public:
+  static int64_t get_zone_size();
   static int64_t get_span_size();
   bmap_area_type_t level_to_type(int level);
   static int get_level(int64_t total_blocks);
+  static int64_t get_level_factor(int level);
   virtual bool is_allocated(int64_t start_block, int64_t num_blocks) = 0;
-  virtual bool is_allocated(int64_t *blocks, int64_t num_blocks, int blk_off) {
-    debug_assert(0);
-    return true;
-  }
   virtual bool is_exhausted() = 0;
   virtual bool child_check_n_lock(BitMapArea *child, int64_t required) {
       debug_assert(0);
@@ -349,6 +346,17 @@ public:
   ~BitMapZone();
   void shutdown();
 
+  virtual int64_t alloc_blocks(bool wait, int64_t num_blocks, int64_t *start_block) {
+    debug_assert(0);
+    return 0;
+  }
+
+  virtual int64_t alloc_blocks_dis(bool wait, int64_t num_blocks,
+             int64_t blk_off, int64_t *block_list) {
+    debug_assert(0);
+    return 0;
+  }
+
   int64_t alloc_blocks(int64_t num_blocks, int64_t *start_block);
   int64_t alloc_blocks_dis(int64_t num_blocks, int64_t blk_off, int64_t *block_list);
   void set_blocks_used(int64_t start_block, int64_t num_blocks);
@@ -370,8 +378,14 @@ protected:
   BitMapAreaList *m_child_list;
 
   bool is_allocated(int64_t start_block, int64_t num_blocks);
-  bool is_allocated(int64_t *blocks, int64_t num_blocks, int64_t blk_off);
+  virtual bool is_allocated(int64_t *blocks, int64_t num_blocks, int64_t blk_off);
   virtual bool is_exhausted();
+  
+  bool child_check_n_lock(BitMapArea *child, int64_t required, bool lock) {
+    debug_assert(0);
+    return false;
+  }
+
   virtual bool child_check_n_lock(BitMapArea *child, int64_t required);
   virtual void child_unlock(BitMapArea *child);
 
@@ -407,6 +421,8 @@ public:
 
   virtual int64_t alloc_blocks_int(bool wait, bool wrap,
                      int64_t num_blocks, int64_t *start_block);
+  using BitMapArea::alloc_blocks; //non-wait version
+  using BitMapArea::alloc_blocks_dis; //non-wait version
   virtual int64_t alloc_blocks(bool wait, int64_t num_blocks, int64_t *start_block);
   virtual int64_t alloc_blocks_dis_int(bool wait, int64_t num_blocks,
                int64_t blk_off, int64_t *block_list);
@@ -431,6 +447,12 @@ public:
   BitMapAreaLeaf() { }
   BitMapAreaLeaf(int64_t zone_num, int64_t total_blocks);
   BitMapAreaLeaf(int64_t zone_num, int64_t total_blocks, bool def);
+
+  bool child_check_n_lock(BitMapArea *child, int64_t required) {
+    debug_assert(0);
+    return false;
+  }
+
   bool child_check_n_lock(BitMapArea *child, int64_t required, bool lock);
   void child_unlock(BitMapArea *child);
 
@@ -463,6 +485,7 @@ private:
     return m_is_stats_on;
   }
 
+  using BitMapArea::child_check_n_lock;
   bool child_check_n_lock(BitMapArea *child, int64_t required);
   virtual void child_unlock(BitMapArea *child);
 
@@ -485,6 +508,9 @@ public:
                bmap_alloc_mode_t mode, bool def, bool stats_on);
   ~BitAllocator();
   void shutdown();
+  using BitMapAreaIN::alloc_blocks; //Wait version
+  using BitMapAreaIN::alloc_blocks_dis; //Wait version
+
   int64_t alloc_blocks(int64_t num_blocks, int64_t *start_block);
   int64_t alloc_blocks_res(int64_t num_blocks, int64_t *start_block);
   void free_blocks(int64_t start_block, int64_t num_blocks);

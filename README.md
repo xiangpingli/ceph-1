@@ -4,6 +4,7 @@ Ceph - a scalable distributed storage system
 
 Please see http://ceph.com/ for current info.
 
+
 Contributing Code
 =================
 
@@ -28,15 +29,15 @@ Checking out the source
 
 You can clone from github with
 
-        git clone git@github.com:ceph/ceph
+	git clone git@github.com:ceph/ceph
 
 or, if you are not a github user,
 
-        git clone git://github.com/ceph/ceph
+	git clone git://github.com/ceph/ceph
 
 Ceph contains many git submodules that need to be checked out with
 
-        git submodule update --init --recursive
+	git submodule update --init --recursive
 
 
 Build Prerequisites
@@ -50,50 +51,64 @@ The list of Debian or RPM packages dependencies can be installed with:
 Building Ceph
 =============
 
-Autotools
----------
+Note that these instructions are meant for developers who are
+compiling the code for development and testing.  To build binaries
+suitable for installation we recommend you build deb or rpm packages,
+or refer to the ceph.spec.in or debian/rules to see which
+configuration options are specified for production builds.
 
-Developers, please refer to the [Developer
-Guide](doc/dev/quick_guide.rst) for more information, otherwise, you
-can build the server daemons, and FUSE client, by executing the
-following:
-
-	./autogen.sh
-	./configure
-	make
-
-(Note that the FUSE client will only be built if libfuse is present.)
-
-CMake
------
-
-Prerequisite:
-        CMake 2.8.11
+Prerequisite: CMake 2.8.11
 
 Build instructions:
 
-	mkdir build
+	./do_cmake.sh
 	cd build
-	cmake [options] ..
 	make
 
 This assumes you make your build dir a subdirectory of the ceph.git
-checkout.  If you put it elsewhere, just replace .. above with a
+checkout. If you put it elsewhere, just replace .. above with a
 correct path to the checkout.
 
+To build only certain targets use:
 
-Dependencies
-------------
+        make [target name]
 
-The configure script will complain about any missing dependencies as
-it goes.  You can also refer to debian/control or ceph.spec.in for the
-package build dependencies on those platforms.  In many cases,
-dependencies can be avoided with --with-foo or --without-bar switches.
-For example,
+To install:
 
-	./configure --with-nss         # use libnss instead of libcrypto++
-	./configure --without-radosgw  # do not build radosgw
-	./configure --without-tcmalloc # avoid google-perftools dependency
+        make install
+ 
+CMake Options
+-------------
+
+If you run the `cmake` command by hand, there are many options you can
+set with "-D". For example the option to build the RADOS Gateway is
+defaulted to ON. To build without the RADOS Gateway:
+
+        cmake -DWITH_RADOSGW=OFF [path to top level ceph directory]
+
+Another example below is building with debugging and alternate locations 
+for a couple of external dependencies:
+
+        cmake -DLEVELDB_PREFIX="/opt/hyperleveldb" -DOFED_PREFIX="/opt/ofed" \
+        -DCMAKE_INSTALL_PREFIX=/opt/accelio -DCMAKE_C_FLAGS="-O0 -g3 -gdwarf-4" \
+        ..
+
+To view an exhaustive list of -D options, you can invoke `cmake` with:
+
+        cmake -LH
+
+If you often pipe `make` to `less` and would like to maintain the
+diagnostic colors for errors and warnings (and if your compiler
+supports it), you can invoke `cmake` with:
+
+        cmake -DDIAGNOSTICS_COLOR=always ..
+
+Then you'll get the diagnostic colors when you execute:
+
+        make | less -R
+
+Other available values for 'DIAGNOSTICS_COLOR' are 'auto' (default) and
+'never'.
 
 
 Building packages
@@ -114,70 +129,70 @@ For RPM-based systems (Red Hat, SUSE, etc.),
 Running a test cluster
 ======================
 
-Autotools
----------
-
 To run a functional test cluster,
 
-	cd src
-	./vstart.sh -d -n -x -l
-	./ceph -s
+	cd build
+	make vstart        # builds just enough to run vstart
+	../src/vstart.sh -d -n -x -l
+	./bin/ceph -s
 
-Almost all of the usual commands are available in the src/ directory.
+Almost all of the usual commands are available in the bin/ directory.
 For example,
 
-	./rados -p rbd bench 30 write
-	./rbd create foo --size 1000
+	./bin/rados -p rbd bench 30 write
+	./bin/rbd create foo --size 1000
 
 To shut down the test cluster,
 
-	./stop.sh
+	../src/stop.sh
 
-To start or stop individual daemons, the sysvinit script should work:
+To start or stop individual daemons, the sysvinit script can be used:
 
-	./init-ceph restart osd.0
-	./init-ceph stop
-
-CMake
------
-
-???
+	./bin/init-ceph restart osd.0
+	./bin/init-ceph stop
 
 
 Running unit tests
 ==================
 
-Autotools
----------
+To build and run all tests (in parallel using all processors), use `ctest`:
 
-To run all tests, a simple
+	cd build
+	make
+	ctest -j$(nproc)
 
-	cd src
-	make check
+(Note: Many targets built from src/test are not run using `ctest`.
+Targets starting with "unittest" are run in `make check` and thus can
+be run with `ctest`. Targets starting with "ceph_test" can not, and should
+be run by hand.)
 
-will suffice.  Each test generates a log file that is the name of the
-test with .log appended.  For example, unittest_addrs generates a
-unittest_addrs.log and test/osd/osd-config.sh puts its output in
-test/osd/osd-config.sh.log.
+To build and run all tests and their dependencies without other
+unnecessary targets in Ceph:
 
-To run an individual test manually, you may want to clean up with
+        cd build
+        make check -j$(nproc)
 
-	rm -rf testdir /tmp/*virtualenv
-	./stop.sh
+To run an individual test manually, run `ctest` with -R (regex matching):
 
-and then run a given test like so:
+	ctest -R [regex matching test name(s)]
 
-	./unittest_addrs
+(Note: `ctest` does not build the test it's running or the dependencies needed
+to run it)
 
-Many tests are bash scripts that spin up small test clusters, and must be run
-like so:
+To run an individual test manually and see all the tests output, run
+`ctest` with the -V (verbose) flag:
 
-	CEPH_DIR=. test/osd/osd-bench.sh   # or whatever the test is
+	ctest -V -R [regex matching test name(s)]
 
-CMake
------
+To run an tests manually and run the jobs in parallel, run `ctest` with 
+the -j flag:
 
-???
+	ctest -j [number of jobs]
+
+There are many other flags you can give `ctest` for better control
+over manual test execution. To view these options run:
+
+	man ctest
 
 
 Building the Documentation

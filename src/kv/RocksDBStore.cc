@@ -73,7 +73,7 @@ class RocksDBStore::MergeOperatorRouter : public rocksdb::AssociativeMergeOperat
 			  value.data(), value.size(),
 			  new_value);
         } else {
-          p.second->merge_nonexistant(value.data(), value.size(), new_value);
+          p.second->merge_nonexistent(value.data(), value.size(), new_value);
         }
         break;
       }
@@ -691,15 +691,17 @@ bool RocksDBStore::RocksDBWholeSpaceIteratorImpl::valid()
 }
 int RocksDBStore::RocksDBWholeSpaceIteratorImpl::next()
 {
-  if (valid())
-  dbiter->Next();
+  if (valid()) {
+    dbiter->Next();
+  }
   return dbiter->status().ok() ? 0 : -1;
 }
 int RocksDBStore::RocksDBWholeSpaceIteratorImpl::prev()
 {
-  if (valid())
+  if (valid()) {
     dbiter->Prev();
-    return dbiter->status().ok() ? 0 : -1;
+  }
+  return dbiter->status().ok() ? 0 : -1;
 }
 string RocksDBStore::RocksDBWholeSpaceIteratorImpl::key()
 {
