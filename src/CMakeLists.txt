@@ -232,6 +232,9 @@ else(${ENABLE_GIT_VERSION})
   set(CEPH_GIT_NICE_VER "Development")
 endif(${ENABLE_GIT_VERSION})
 
+add_custom_target(tests
+  COMMENT "Building tests")
+
 option(WITH_OCF "build OCF-compliant cluster resource agent" OFF)
 if(WITH_OCF)
   add_subdirectory(ocf)
