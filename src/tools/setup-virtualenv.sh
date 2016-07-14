@@ -33,8 +33,8 @@ pip $DISABLE_PIP_VERSION_CHECK --help 1>&2
 echo "upgrading pip" 1>&2
 # older versions of pip will not install wrap_console scripts
 # when using wheel packages
-pip $DISABLE_PIP_VERSION_CHECK --log $DIR/log.txt install --upgrade 'pip >= 6.1'
-
+pip $DISABLE_PIP_VERSION_CHECK --log $DIR/log.txt install --upgrade 'pip >= 6.1' 1>&2
+cat $DIR/log.txt 1>&2
 if pip --help | grep -q disable-pip-version-check; then
     DISABLE_PIP_VERSION_CHECK=--disable-pip-version-check
 else
